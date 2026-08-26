@@ -49,6 +49,13 @@ export const Asset = z.object({
   capturedAt: z.iso.datetime(),
   /** True when `capturedAt` came from EXIF rather than a fallback. */
   capturedAtIsExact: z.boolean(),
+  /**
+   * The capture date before the owner corrected it, or null if never corrected.
+   * The uploaded file is never rewritten, so its own EXIF is untouched either way.
+   */
+  capturedAtOriginal: z.iso.datetime().nullable(),
+  /** Whether that original date was itself exact. Null when never corrected. */
+  capturedAtOriginalIsExact: z.boolean().nullable(),
   createdAt: z.iso.datetime(),
   updatedAt: z.iso.datetime(),
   deletedAt: z.iso.datetime().nullable(),
@@ -71,6 +78,8 @@ export const AssetUpdate = z.object({
   archived: z.boolean().optional(),
   description: z.string().max(4096).nullable().optional(),
   capturedAt: z.iso.datetime().optional(),
+  /** Puts back the date the file was imported with, discarding any correction. */
+  resetCapturedAt: z.boolean().optional(),
   location: GeoPoint.nullable().optional(),
 })
 export type AssetUpdate = z.infer<typeof AssetUpdate>
