@@ -22,7 +22,7 @@ import kotlinx.serialization.json.Json
  * only the fields it means to change, and unknown keys are ignored on the way in, so a
  * newer server does not break an older client.
  */
-internal val wireJson = Json {
+val wireJson: Json = Json {
     ignoreUnknownKeys = true
     encodeDefaults = false
     explicitNulls = false

@@ -25,3 +25,7 @@ build/
 # Kotlin / Gradle
 .gradle/
 kotlin/build/
+
+# Gradle
+kotlin/.gradle/
+kotlin/build/
