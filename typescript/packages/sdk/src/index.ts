@@ -11,8 +11,13 @@ export type {
   AssetUploadResult,
   AssetVariant,
   AuthConfig,
+  DetectedFace,
+  FaceStatus,
   LibraryStats,
   OAuthScope,
+  Person,
+  PersonUpdate,
+  PersonWithPhotos,
   ProfileUpdate,
   ShareLink,
   TimelineBucket,
@@ -37,4 +42,5 @@ export {
   type PendingAuthorization,
   type StoredTokens,
 } from './oauth.ts'
+export { People } from './people.ts'
 export { Vault, type VaultStatus } from './vault.ts'
