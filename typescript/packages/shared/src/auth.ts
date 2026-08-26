@@ -29,6 +29,8 @@ export const SignupRequest = z.object({
   email: z.email(),
   password: z.string().min(10, 'Use at least 10 characters').max(1024),
   name: z.string().min(1).max(128),
+  /** An invitation token. Admits one account to a server with sign-up closed. */
+  invite: z.string().min(1).max(256).optional(),
 })
 export type SignupRequest = z.infer<typeof SignupRequest>
 
