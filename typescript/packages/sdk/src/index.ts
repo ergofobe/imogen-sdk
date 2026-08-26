@@ -13,6 +13,7 @@ export type {
   AuthConfig,
   LibraryStats,
   OAuthScope,
+  ProfileUpdate,
   ShareLink,
   TimelineBucket,
   User,

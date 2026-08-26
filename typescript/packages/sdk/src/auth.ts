@@ -2,6 +2,7 @@ import type {
   AuthConfig,
   LoginRequest,
   PasswordChangeRequest,
+  ProfileUpdate,
   SignupRequest,
   User,
 } from '@imogen/shared'
@@ -33,6 +34,11 @@ export class Auth {
 
   me(): Promise<User> {
     return this.http.request<User>('GET', '/api/v1/auth/me')
+  }
+
+  /** Edits your own name or email. Not available to provider-managed accounts. */
+  updateProfile(patch: ProfileUpdate): Promise<User> {
+    return this.http.request<User>('PATCH', '/api/v1/auth/me', { body: patch })
   }
 
   changePassword(request: PasswordChangeRequest): Promise<void> {

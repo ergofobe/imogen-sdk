@@ -44,7 +44,13 @@ export const AuthConfig = z.object({
   /** True until the first account exists; the first signup becomes the admin. */
   needsSetup: z.boolean(),
   oidc: z
-    .object({ enabled: z.literal(true), label: z.string(), startUrl: z.string() })
+    .object({
+      enabled: z.literal(true),
+      label: z.string(),
+      startUrl: z.string(),
+      /** Where to send someone to edit the details the provider owns, if known. */
+      accountUrl: z.url().nullable(),
+    })
     .or(z.object({ enabled: z.literal(false) })),
 })
 export type AuthConfig = z.infer<typeof AuthConfig>
@@ -107,3 +113,15 @@ export const TokenResponse = z.object({
   scope: z.string(),
 })
 export type TokenResponse = z.infer<typeof TokenResponse>
+
+/**
+ * Editing your own profile. Accounts linked to an identity provider cannot change these
+ * here — the provider owns them, and imogen re-reads them at every sign-in.
+ */
+export const ProfileUpdate = z.object({
+  name: z.string().min(1).max(128).optional(),
+  email: z.email().optional(),
+  /** Required to change the email address on an account that has a password. */
+  currentPassword: z.string().max(1024).optional(),
+})
+export type ProfileUpdate = z.infer<typeof ProfileUpdate>
