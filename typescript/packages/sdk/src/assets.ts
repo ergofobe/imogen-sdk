@@ -6,6 +6,8 @@ import type {
   AssetUploadResult,
   AssetVariant,
   LibraryStats,
+  ShareLink,
+  ShareLinkCreate,
   TimelineBucket,
   UploadSession,
 } from '@imogen/shared'
@@ -62,6 +64,22 @@ export class Assets {
 
   get(assetId: string): Promise<Asset> {
     return this.http.request<Asset>('GET', `/api/v1/assets/${assetId}`)
+  }
+
+  /** The live public link for one photo, or null. */
+  shareLink(assetId: string): Promise<ShareLink | null> {
+    return this.http.request<ShareLink | null>('GET', `/api/v1/assets/${assetId}/share`)
+  }
+
+  /** Publishes one photo. Replaces any existing link for it. */
+  share(assetId: string, input: Partial<ShareLinkCreate> = {}): Promise<ShareLink> {
+    return this.http.request<ShareLink>('POST', `/api/v1/assets/${assetId}/share`, {
+      body: { allowDownload: true, ...input },
+    })
+  }
+
+  unshare(assetId: string): Promise<void> {
+    return this.http.request<void>('DELETE', `/api/v1/assets/${assetId}/share`)
   }
 
   update(assetId: string, patch: AssetUpdate): Promise<Asset> {

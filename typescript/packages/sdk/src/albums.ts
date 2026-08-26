@@ -43,6 +43,11 @@ export class Albums {
     return this.http.request('DELETE', `/api/v1/albums/${albumId}/assets`, { body: { assetIds } })
   }
 
+  /** The live public link for this album, or null. */
+  shareLink(albumId: string): Promise<ShareLink | null> {
+    return this.http.request<ShareLink | null>('GET', `/api/v1/albums/${albumId}/share`)
+  }
+
   share(albumId: string, input: ShareLinkCreate = { allowDownload: true }): Promise<ShareLink> {
     return this.http.request<ShareLink>('POST', `/api/v1/albums/${albumId}/share`, { body: input })
   }

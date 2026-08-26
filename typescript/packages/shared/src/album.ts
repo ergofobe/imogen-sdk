@@ -48,7 +48,9 @@ export type AlbumAssetsResult = z.infer<typeof AlbumAssetsResult>
 export const ShareLink = z.object({
   slug: z.string(),
   url: z.url(),
-  albumId: z.uuid(),
+  /** Exactly one of these is set: a link points at an album or at one photograph. */
+  albumId: z.uuid().nullable(),
+  assetId: z.uuid().nullable(),
   expiresAt: z.iso.datetime().nullable(),
   allowDownload: z.boolean(),
   createdAt: z.iso.datetime(),
