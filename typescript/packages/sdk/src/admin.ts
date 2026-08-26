@@ -1,6 +1,7 @@
 import type {
   AdminClient,
   AdminSession,
+  AdminShareLink,
   AdminUser,
   AdminUserUpdate,
   Invite,
@@ -123,5 +124,19 @@ export class Admin {
   /** Takes effect at once. The stored value wins over the environment. */
   updateSettings(patch: ServerSettingsUpdate): Promise<ServerSettings> {
     return this.http.request<ServerSettings>('PATCH', '/api/v1/admin/settings', { body: patch })
+  }
+
+  /** Every link that is public right now, across all accounts. */
+  async shares(): Promise<AdminShareLink[]> {
+    const { items } = await this.http.request<{ items: AdminShareLink[] }>(
+      'GET',
+      '/api/v1/admin/shares',
+    )
+    return items
+  }
+
+  /** Closes a link, whoever made it. */
+  revokeShare(id: string): Promise<void> {
+    return this.http.request<void>('DELETE', `/api/v1/admin/shares/${id}`)
   }
 }

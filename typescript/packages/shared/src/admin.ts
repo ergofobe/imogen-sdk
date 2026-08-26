@@ -188,3 +188,25 @@ export type ServerSettings = z.infer<typeof ServerSettings>
 
 export const ServerSettingsUpdate = ServerSettings.partial()
 export type ServerSettingsUpdate = z.infer<typeof ServerSettingsUpdate>
+
+/**
+ * A public link, as the person responsible for the server sees it.
+ *
+ * Named by what it points at rather than by its slug: an administrator deciding
+ * whether something should still be public is asking what it is, not what it is
+ * called.
+ */
+export const AdminShareLink = z.object({
+  id: z.uuid(),
+  slug: z.string(),
+  url: z.url(),
+  kind: z.enum(['album', 'photo']),
+  /** The album's name, or the photograph's filename. */
+  target: z.string(),
+  createdByEmail: z.string(),
+  createdAt: z.iso.datetime(),
+  expiresAt: z.iso.datetime().nullable(),
+  hasPassword: z.boolean(),
+  allowDownload: z.boolean(),
+})
+export type AdminShareLink = z.infer<typeof AdminShareLink>
