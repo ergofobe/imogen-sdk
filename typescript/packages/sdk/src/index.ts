@@ -23,6 +23,7 @@ export type {
   TimelineBucket,
   User,
 } from '@imogen/shared'
+export * from './admin.ts'
 export { Albums } from './albums.ts'
 export {
   type AssetPage,

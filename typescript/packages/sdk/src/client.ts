@@ -1,3 +1,4 @@
+import { Admin } from './admin.ts'
 import { Albums } from './albums.ts'
 import { Assets } from './assets.ts'
 import { Auth } from './auth.ts'
@@ -19,6 +20,7 @@ export class ImogenClient {
   readonly http: HttpClient
   readonly assets: Assets
   readonly albums: Albums
+  readonly admin: Admin
   readonly auth: Auth
   readonly vault: Vault
   readonly people: People
@@ -27,6 +29,7 @@ export class ImogenClient {
     this.http = new HttpClient(options)
     this.assets = new Assets(this.http)
     this.albums = new Albums(this.http)
+    this.admin = new Admin(this.http)
     this.auth = new Auth(this.http)
     this.vault = new Vault(this.http)
     this.people = new People(this.http)

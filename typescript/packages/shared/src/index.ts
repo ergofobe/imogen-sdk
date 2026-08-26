@@ -1,3 +1,4 @@
+export * from './admin.ts'
 export * from './album.ts'
 export * from './asset.ts'
 export * from './auth.ts'
