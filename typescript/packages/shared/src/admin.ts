@@ -17,6 +17,8 @@ export const AdminUser = z.object({
   role: UserRole,
   /** How this account signs in. An SSO account has no password to reset. */
   signsInWith: z.enum(['password', 'sso', 'both']),
+  /** Suspended: the rows are all still here, but nobody can sign in as them. */
+  disabled: z.boolean(),
   photoCount: z.number().int().nonnegative(),
   usedBytes: z.number().int().nonnegative(),
   /** Null when the account draws on whatever the server has. */
