@@ -1,4 +1,6 @@
 import type {
+  AdminClient,
+  AdminSession,
   AdminUser,
   AdminUserUpdate,
   Invite,
@@ -77,5 +79,32 @@ export class Admin {
 
   discardJob(id: string): Promise<void> {
     return this.http.request<void>('DELETE', `/api/v1/admin/queue/${id}`)
+  }
+
+  /** Applications allowed to act on someone's behalf. */
+  async clients(): Promise<AdminClient[]> {
+    const { items } = await this.http.request<{ items: AdminClient[] }>(
+      'GET',
+      '/api/v1/admin/clients',
+    )
+    return items
+  }
+
+  /** Removes an application. Its tokens go with it. */
+  revokeClient(clientId: string): Promise<void> {
+    return this.http.request<void>('DELETE', `/api/v1/admin/clients/${clientId}`)
+  }
+
+  async sessions(): Promise<AdminSession[]> {
+    const { items } = await this.http.request<{ items: AdminSession[] }>(
+      'GET',
+      '/api/v1/admin/sessions',
+    )
+    return items
+  }
+
+  /** Ends a session. Refuses the one making the request. */
+  revokeSession(id: string): Promise<void> {
+    return this.http.request<void>('DELETE', `/api/v1/admin/sessions/${id}`)
   }
 }

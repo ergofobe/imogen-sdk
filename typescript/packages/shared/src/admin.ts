@@ -107,3 +107,39 @@ export const QueueHealth = z.object({
   failures: z.array(AdminJob),
 })
 export type QueueHealth = z.infer<typeof QueueHealth>
+
+/**
+ * An application allowed to act on someone's behalf.
+ *
+ * `dynamicallyRegistered` is the one that matters: with RFC 7591 open, anything that
+ * asks gets a client, so this separates what an administrator set up deliberately
+ * from what simply turned up.
+ */
+export const AdminClient = z.object({
+  id: z.string(),
+  name: z.string(),
+  redirectUris: z.array(z.string()),
+  scopes: z.array(z.string()),
+  dynamicallyRegistered: z.boolean(),
+  /** Public clients hold no secret and rely on PKCE. Native apps and MCP are these. */
+  isPublic: z.boolean(),
+  createdAt: z.iso.datetime(),
+  /** How many live tokens it holds, across everyone. */
+  activeTokens: z.number().int().nonnegative(),
+})
+export type AdminClient = z.infer<typeof AdminClient>
+
+/** A signed-in browser. */
+export const AdminSession = z.object({
+  id: z.uuid(),
+  userId: z.uuid(),
+  userEmail: z.string(),
+  userAgent: z.string().nullable(),
+  ipAddress: z.string().nullable(),
+  createdAt: z.iso.datetime(),
+  lastUsedAt: z.iso.datetime(),
+  expiresAt: z.iso.datetime(),
+  /** True for the session making this request, so it is not revoked by accident. */
+  current: z.boolean(),
+})
+export type AdminSession = z.infer<typeof AdminSession>
