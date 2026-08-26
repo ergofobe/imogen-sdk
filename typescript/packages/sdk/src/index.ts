@@ -36,7 +36,13 @@ export {
 export { Auth } from './auth.ts'
 export { ImogenClient } from './client.ts'
 export { ImogenError } from './errors.ts'
-export { type ClientOptions, HttpClient, type TokenProvider } from './http.ts'
+export {
+  type ClientOptions,
+  type FetchLike,
+  HttpClient,
+  type RequestOptions,
+  type TokenProvider,
+} from './http.ts'
 export {
   type AuthorizationServerMetadata,
   OAuthClient,
