@@ -36,3 +36,4 @@ export {
   type PendingAuthorization,
   type StoredTokens,
 } from './oauth.ts'
+export { Vault, type VaultStatus } from './vault.ts'

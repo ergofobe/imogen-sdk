@@ -2,6 +2,7 @@ import { Albums } from './albums.ts'
 import { Assets } from './assets.ts'
 import { Auth } from './auth.ts'
 import { type ClientOptions, HttpClient } from './http.ts'
+import { Vault } from './vault.ts'
 
 /**
  * The imogen client.
@@ -18,12 +19,14 @@ export class ImogenClient {
   readonly assets: Assets
   readonly albums: Albums
   readonly auth: Auth
+  readonly vault: Vault
 
   constructor(options: ClientOptions) {
     this.http = new HttpClient(options)
     this.assets = new Assets(this.http)
     this.albums = new Albums(this.http)
     this.auth = new Auth(this.http)
+    this.vault = new Vault(this.http)
   }
 
   get baseUrl(): string {
