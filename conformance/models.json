@@ -1,0 +1,390 @@
+{
+  "$comment": "Canonical sample payloads for every model in the contract. Each port decodes these into its own types and asserts the named fields survive the round trip. A field renamed, retyped, or wrongly made non-nullable in one language fails here.",
+  "version": "0.1.0",
+  "asset": {
+    "payload": {
+      "id": "6a5f1e2c-90b4-4d1a-8f3e-2b7c9d0a1e45",
+      "ownerId": "11111111-2222-4333-8444-555555555555",
+      "type": "image",
+      "status": "ready",
+      "originalFilename": "harbour.jpg",
+      "mimeType": "image/jpeg",
+      "checksum": "9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08",
+      "sizeBytes": 2481216,
+      "width": 4032,
+      "height": 3024,
+      "duration": null,
+      "capturedAt": "2024-06-01T09:30:00.000Z",
+      "capturedAtIsExact": true,
+      "capturedAtOriginal": null,
+      "capturedAtOriginalIsExact": null,
+      "createdAt": "2024-06-02T11:00:00.000Z",
+      "updatedAt": "2024-06-02T11:05:00.000Z",
+      "deletedAt": null,
+      "favorite": true,
+      "archived": false,
+      "description": "Fishing boats at dawn",
+      "exif": {
+        "make": "FUJIFILM",
+        "model": "X-T4",
+        "lens": "XF23mmF1.4 R",
+        "fNumber": 2.8,
+        "exposureTime": 0.004,
+        "iso": 160,
+        "focalLength": 23,
+        "orientation": 1
+      },
+      "location": {
+        "latitude": 50.1109,
+        "longitude": -5.5372,
+        "altitude": 12.5,
+        "place": "Newlyn, Cornwall"
+      },
+      "placeholderColor": "#3b5f7a",
+      "livePhotoVideoId": null,
+      "deviceAssetId": "IMG_0042"
+    },
+    "assert": {
+      "id": "6a5f1e2c-90b4-4d1a-8f3e-2b7c9d0a1e45",
+      "type": "image",
+      "status": "ready",
+      "sizeBytes": 2481216,
+      "width": 4032,
+      "favorite": true,
+      "archived": false,
+      "duration": null,
+      "deletedAt": null,
+      "exif.iso": 160,
+      "exif.fNumber": 2.8,
+      "location.latitude": 50.1109,
+      "location.place": "Newlyn, Cornwall",
+      "deviceAssetId": "IMG_0042"
+    }
+  },
+  "assetMinimal": {
+    "$comment": "Every nullable field actually null, and a video. Proves optionality is modelled, not assumed.",
+    "payload": {
+      "id": "00000000-0000-4000-8000-000000000001",
+      "ownerId": "00000000-0000-4000-8000-000000000002",
+      "type": "video",
+      "status": "pending",
+      "originalFilename": "clip.mov",
+      "mimeType": "video/quicktime",
+      "checksum": "0000000000000000000000000000000000000000000000000000000000000000",
+      "sizeBytes": 0,
+      "width": null,
+      "height": null,
+      "duration": 12.5,
+      "capturedAt": "2020-01-01T00:00:00.000Z",
+      "capturedAtIsExact": false,
+      "capturedAtOriginal": null,
+      "capturedAtOriginalIsExact": null,
+      "createdAt": "2020-01-01T00:00:00.000Z",
+      "updatedAt": "2020-01-01T00:00:00.000Z",
+      "deletedAt": null,
+      "favorite": false,
+      "archived": false,
+      "description": null,
+      "exif": null,
+      "location": null,
+      "placeholderColor": null,
+      "livePhotoVideoId": null,
+      "deviceAssetId": null
+    },
+    "assert": {
+      "type": "video",
+      "status": "pending",
+      "duration": 12.5,
+      "width": null,
+      "exif": null,
+      "location": null,
+      "description": null
+    }
+  },
+  "assetPage": {
+    "payload": {
+      "items": [],
+      "nextCursor": "eyJjIjoiMjAyNC0wNi0wMSJ9",
+      "total": 1284
+    },
+    "assert": {
+      "nextCursor": "eyJjIjoiMjAyNC0wNi0wMSJ9",
+      "total": 1284
+    }
+  },
+  "album": {
+    "payload": {
+      "id": "aaaaaaaa-1111-4222-8333-444444444444",
+      "ownerId": "11111111-2222-4333-8444-555555555555",
+      "name": "Cornwall 2024",
+      "description": "A week in Newlyn",
+      "coverAssetId": "6a5f1e2c-90b4-4d1a-8f3e-2b7c9d0a1e45",
+      "assetCount": 87,
+      "createdAt": "2024-06-10T08:00:00.000Z",
+      "updatedAt": "2024-06-11T08:00:00.000Z",
+      "shareSlug": "sunny-harbour-42"
+    },
+    "assert": {
+      "name": "Cornwall 2024",
+      "assetCount": 87,
+      "shareSlug": "sunny-harbour-42",
+      "coverAssetId": "6a5f1e2c-90b4-4d1a-8f3e-2b7c9d0a1e45"
+    }
+  },
+  "albumAssetsResult": {
+    "payload": { "added": 12, "skipped": 3, "assetCount": 99 },
+    "assert": { "added": 12, "skipped": 3, "assetCount": 99 }
+  },
+  "shareLink": {
+    "payload": {
+      "slug": "sunny-harbour-42",
+      "url": "https://photos.example.com/share/sunny-harbour-42",
+      "albumId": "aaaaaaaa-1111-4222-8333-444444444444",
+      "assetId": null,
+      "expiresAt": "2025-01-01T00:00:00.000Z",
+      "allowDownload": true,
+      "createdAt": "2024-06-11T08:00:00.000Z"
+    },
+    "assert": {
+      "slug": "sunny-harbour-42",
+      "assetId": null,
+      "allowDownload": true,
+      "expiresAt": "2025-01-01T00:00:00.000Z"
+    }
+  },
+  "user": {
+    "payload": {
+      "id": "11111111-2222-4333-8444-555555555555",
+      "email": "jim@example.com",
+      "name": "Jim",
+      "role": "admin",
+      "avatarUrl": null,
+      "oidcSubject": null,
+      "hasPassword": true,
+      "createdAt": "2024-01-01T00:00:00.000Z",
+      "quotaBytes": null,
+      "usedBytes": 10737418240
+    },
+    "assert": {
+      "email": "jim@example.com",
+      "role": "admin",
+      "hasPassword": true,
+      "quotaBytes": null,
+      "usedBytes": 10737418240,
+      "avatarUrl": null
+    }
+  },
+  "authConfigOidcOff": {
+    "payload": {
+      "allowSignup": false,
+      "needsSetup": false,
+      "oidc": { "enabled": false }
+    },
+    "assert": { "allowSignup": false, "needsSetup": false, "oidc.enabled": false }
+  },
+  "authConfigOidcOn": {
+    "payload": {
+      "allowSignup": true,
+      "needsSetup": false,
+      "oidc": {
+        "enabled": true,
+        "label": "Company SSO",
+        "startUrl": "/api/v1/auth/oidc/start",
+        "accountUrl": "https://sso.example.com/account"
+      }
+    },
+    "assert": {
+      "allowSignup": true,
+      "oidc.enabled": true,
+      "oidc.label": "Company SSO",
+      "oidc.accountUrl": "https://sso.example.com/account"
+    }
+  },
+  "person": {
+    "payload": {
+      "id": "bbbbbbbb-1111-4222-8333-444444444444",
+      "name": "Ada",
+      "coverFaceId": "cccccccc-1111-4222-8333-444444444444",
+      "photoCount": 214,
+      "hidden": false
+    },
+    "assert": { "name": "Ada", "photoCount": 214, "hidden": false }
+  },
+  "personUnnamed": {
+    "payload": {
+      "id": "bbbbbbbb-2222-4222-8333-444444444444",
+      "name": null,
+      "coverFaceId": null,
+      "photoCount": 3,
+      "hidden": true
+    },
+    "assert": { "name": null, "coverFaceId": null, "hidden": true }
+  },
+  "detectedFace": {
+    "payload": {
+      "id": "cccccccc-1111-4222-8333-444444444444",
+      "assetId": "6a5f1e2c-90b4-4d1a-8f3e-2b7c9d0a1e45",
+      "personId": "bbbbbbbb-1111-4222-8333-444444444444",
+      "personName": "Ada",
+      "x": 1024,
+      "y": 768,
+      "width": 256,
+      "height": 256,
+      "score": 0.987
+    },
+    "assert": { "x": 1024, "y": 768, "width": 256, "score": 0.987, "personName": "Ada" }
+  },
+  "faceStatus": {
+    "payload": {
+      "enabled": true,
+      "modelsReady": false,
+      "models": [
+        { "name": "detector", "present": true, "bytes": 1048576, "expectedBytes": 1048576 },
+        { "name": "recogniser", "present": false, "bytes": 524288, "expectedBytes": 4194304 }
+      ],
+      "peopleCount": 42,
+      "pending": 118
+    },
+    "assert": { "enabled": true, "modelsReady": false, "peopleCount": 42, "pending": 118 }
+  },
+  "vaultStatusLocked": {
+    "payload": { "configured": true, "unlocked": false },
+    "assert": { "configured": true, "unlocked": false, "count": null }
+  },
+  "vaultStatusUnlocked": {
+    "payload": { "configured": true, "unlocked": true, "count": 17 },
+    "assert": { "configured": true, "unlocked": true, "count": 17 }
+  },
+  "timeline": {
+    "payload": {
+      "buckets": [
+        { "date": "2024-06-01", "count": 12 },
+        { "date": "2024-05-31", "count": 4 }
+      ]
+    },
+    "assert": { "buckets.0.date": "2024-06-01", "buckets.0.count": 12 }
+  },
+  "libraryStats": {
+    "payload": {
+      "assetCount": 12840,
+      "imageCount": 12000,
+      "videoCount": 840,
+      "albumCount": 37,
+      "favoriteCount": 512,
+      "trashedCount": 9,
+      "storageBytes": 274877906944,
+      "earliestCapturedAt": "2003-04-01T12:00:00.000Z",
+      "latestCapturedAt": "2024-06-01T09:30:00.000Z"
+    },
+    "assert": {
+      "assetCount": 12840,
+      "storageBytes": 274877906944,
+      "earliestCapturedAt": "2003-04-01T12:00:00.000Z"
+    }
+  },
+  "uploadSession": {
+    "payload": {
+      "id": "dddddddd-1111-4222-8333-444444444444",
+      "offset": 0,
+      "sizeBytes": 134217728,
+      "expiresAt": "2024-06-02T12:00:00.000Z",
+      "existing": null
+    },
+    "assert": { "offset": 0, "sizeBytes": 134217728, "existing": null }
+  },
+  "adminUser": {
+    "payload": {
+      "id": "11111111-2222-4333-8444-555555555555",
+      "email": "jim@example.com",
+      "name": "Jim",
+      "role": "admin",
+      "signsInWith": "both",
+      "disabled": false,
+      "photoCount": 12840,
+      "usedBytes": 274877906944,
+      "quotaBytes": null,
+      "createdAt": "2024-01-01T00:00:00.000Z",
+      "updatedAt": "2024-06-01T00:00:00.000Z"
+    },
+    "assert": {
+      "signsInWith": "both",
+      "disabled": false,
+      "photoCount": 12840,
+      "quotaBytes": null
+    }
+  },
+  "queueHealth": {
+    "payload": {
+      "queued": 4,
+      "running": 1,
+      "failed": 2,
+      "stuck": 3,
+      "oldestQueuedAt": "2024-06-02T10:00:00.000Z",
+      "failures": [
+        {
+          "id": "eeeeeeee-1111-4222-8333-444444444444",
+          "name": "transcode",
+          "status": "failed",
+          "attempts": 3,
+          "maxAttempts": 3,
+          "lastError": "ffmpeg exited with 1",
+          "runAt": "2024-06-02T10:00:00.000Z",
+          "createdAt": "2024-06-02T09:00:00.000Z",
+          "finishedAt": "2024-06-02T10:01:00.000Z"
+        }
+      ]
+    },
+    "assert": {
+      "queued": 4,
+      "stuck": 3,
+      "failures.0.name": "transcode",
+      "failures.0.status": "failed",
+      "failures.0.lastError": "ffmpeg exited with 1"
+    }
+  },
+  "storageReport": {
+    "payload": {
+      "dataDir": "/var/lib/imogen",
+      "originalBytes": 274877906944,
+      "derivativeBytes": 10737418240,
+      "trashedCount": 9,
+      "trashedBytes": 104857600,
+      "trashRetentionDays": 30,
+      "nextSweepAt": "2024-07-01T00:00:00.000Z",
+      "missingFiles": 0,
+      "perUser": [
+        {
+          "userId": "11111111-2222-4333-8444-555555555555",
+          "email": "jim@example.com",
+          "usedBytes": 274877906944,
+          "photoCount": 12840
+        }
+      ]
+    },
+    "assert": {
+      "dataDir": "/var/lib/imogen",
+      "trashRetentionDays": 30,
+      "missingFiles": 0,
+      "perUser.0.email": "jim@example.com"
+    }
+  },
+  "serverSettings": {
+    "payload": { "allowSignup": true, "trashRetentionDays": 30, "facesEnabled": false },
+    "assert": { "allowSignup": true, "trashRetentionDays": 30, "facesEnabled": false }
+  },
+  "tokenResponse": {
+    "payload": {
+      "access_token": "at_abc123",
+      "token_type": "Bearer",
+      "expires_in": 3600,
+      "refresh_token": "rt_def456",
+      "scope": "library:read library:write"
+    },
+    "assert": {
+      "access_token": "at_abc123",
+      "token_type": "Bearer",
+      "expires_in": 3600,
+      "refresh_token": "rt_def456"
+    }
+  }
+}

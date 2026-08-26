@@ -1,0 +1,96 @@
+{
+  "$comment": "The canonical endpoint table. Every port has a test that walks this file and asserts its client builds exactly these method/path pairs. A path that drifts in one language fails there and nowhere else, which is the point.",
+  "version": "0.1.0",
+  "apiPrefix": "/api/v1",
+  "resources": {
+    "client": [
+      { "operation": "health", "method": "GET", "path": "/api/v1/health" }
+    ],
+    "assets": [
+      { "operation": "list", "method": "GET", "path": "/api/v1/assets" },
+      { "operation": "get", "method": "GET", "path": "/api/v1/assets/{assetId}" },
+      { "operation": "update", "method": "PATCH", "path": "/api/v1/assets/{assetId}" },
+      { "operation": "shareLink", "method": "GET", "path": "/api/v1/assets/{assetId}/share" },
+      { "operation": "share", "method": "POST", "path": "/api/v1/assets/{assetId}/share" },
+      { "operation": "unshare", "method": "DELETE", "path": "/api/v1/assets/{assetId}/share" },
+      { "operation": "trash", "method": "POST", "path": "/api/v1/assets/trash" },
+      { "operation": "restore", "method": "POST", "path": "/api/v1/assets/restore" },
+      { "operation": "timeline", "method": "GET", "path": "/api/v1/assets/timeline" },
+      { "operation": "stats", "method": "GET", "path": "/api/v1/assets/stats" },
+      { "operation": "variant", "method": "GET", "path": "/api/v1/assets/{assetId}/{variant}" },
+      { "operation": "download", "method": "GET", "path": "/api/v1/assets/{assetId}/download" },
+      { "operation": "upload", "method": "POST", "path": "/api/v1/assets" },
+      { "operation": "createUploadSession", "method": "POST", "path": "/api/v1/uploads" },
+      { "operation": "uploadChunk", "method": "PATCH", "path": "/api/v1/uploads/{sessionId}" },
+      { "operation": "completeUpload", "method": "POST", "path": "/api/v1/uploads/{sessionId}/complete" }
+    ],
+    "albums": [
+      { "operation": "list", "method": "GET", "path": "/api/v1/albums" },
+      { "operation": "get", "method": "GET", "path": "/api/v1/albums/{albumId}" },
+      { "operation": "create", "method": "POST", "path": "/api/v1/albums" },
+      { "operation": "update", "method": "PATCH", "path": "/api/v1/albums/{albumId}" },
+      { "operation": "remove", "method": "DELETE", "path": "/api/v1/albums/{albumId}" },
+      { "operation": "addAssets", "method": "POST", "path": "/api/v1/albums/{albumId}/assets" },
+      { "operation": "removeAssets", "method": "DELETE", "path": "/api/v1/albums/{albumId}/assets" },
+      { "operation": "shareLink", "method": "GET", "path": "/api/v1/albums/{albumId}/share" },
+      { "operation": "share", "method": "POST", "path": "/api/v1/albums/{albumId}/share" },
+      { "operation": "unshare", "method": "DELETE", "path": "/api/v1/albums/{albumId}/share" }
+    ],
+    "people": [
+      { "operation": "status", "method": "GET", "path": "/api/v1/people/status" },
+      { "operation": "setEnabled", "method": "POST", "path": "/api/v1/people/enable" },
+      { "operation": "list", "method": "GET", "path": "/api/v1/people" },
+      { "operation": "get", "method": "GET", "path": "/api/v1/people/{personId}" },
+      { "operation": "update", "method": "PATCH", "path": "/api/v1/people/{personId}" },
+      { "operation": "merge", "method": "POST", "path": "/api/v1/people/merge" },
+      { "operation": "reassign", "method": "POST", "path": "/api/v1/people/reassign" },
+      { "operation": "facesIn", "method": "GET", "path": "/api/v1/people/faces/{assetId}" },
+      { "operation": "thumbnail", "method": "GET", "path": "/api/v1/people/thumbnail/{faceId}" }
+    ],
+    "vault": [
+      { "operation": "status", "method": "GET", "path": "/api/v1/vault/status" },
+      { "operation": "setPassphrase", "method": "POST", "path": "/api/v1/vault/setup" },
+      { "operation": "unlock", "method": "POST", "path": "/api/v1/vault/unlock" },
+      { "operation": "lock", "method": "POST", "path": "/api/v1/vault/lock" },
+      { "operation": "list", "method": "GET", "path": "/api/v1/vault/assets" },
+      { "operation": "moveIn", "method": "POST", "path": "/api/v1/vault/assets" },
+      { "operation": "moveOut", "method": "DELETE", "path": "/api/v1/vault/assets" }
+    ],
+    "auth": [
+      { "operation": "config", "method": "GET", "path": "/api/v1/auth/config" },
+      { "operation": "login", "method": "POST", "path": "/api/v1/auth/login" },
+      { "operation": "signup", "method": "POST", "path": "/api/v1/auth/signup" },
+      { "operation": "logout", "method": "POST", "path": "/api/v1/auth/logout" },
+      { "operation": "logoutEverywhere", "method": "POST", "path": "/api/v1/auth/logout-everywhere" },
+      { "operation": "me", "method": "GET", "path": "/api/v1/auth/me" },
+      { "operation": "updateProfile", "method": "PATCH", "path": "/api/v1/auth/me" },
+      { "operation": "changePassword", "method": "POST", "path": "/api/v1/auth/password" },
+      { "operation": "oidcStart", "method": "GET", "path": "/api/v1/auth/oidc/start" }
+    ],
+    "admin": [
+      { "operation": "users", "method": "GET", "path": "/api/v1/admin/users" },
+      { "operation": "updateUser", "method": "PATCH", "path": "/api/v1/admin/users/{userId}" },
+      { "operation": "deleteUser", "method": "DELETE", "path": "/api/v1/admin/users/{userId}" },
+      { "operation": "resetPassword", "method": "POST", "path": "/api/v1/admin/users/{userId}/password" },
+      { "operation": "invites", "method": "GET", "path": "/api/v1/admin/invites" },
+      { "operation": "createInvite", "method": "POST", "path": "/api/v1/admin/invites" },
+      { "operation": "revokeInvite", "method": "DELETE", "path": "/api/v1/admin/invites/{inviteId}" },
+      { "operation": "queue", "method": "GET", "path": "/api/v1/admin/queue" },
+      { "operation": "retryJob", "method": "POST", "path": "/api/v1/admin/queue/{jobId}/retry" },
+      { "operation": "retryAllJobs", "method": "POST", "path": "/api/v1/admin/queue/retry" },
+      { "operation": "discardJob", "method": "DELETE", "path": "/api/v1/admin/queue/{jobId}" },
+      { "operation": "clients", "method": "GET", "path": "/api/v1/admin/clients" },
+      { "operation": "revokeClient", "method": "DELETE", "path": "/api/v1/admin/clients/{clientId}" },
+      { "operation": "sessions", "method": "GET", "path": "/api/v1/admin/sessions" },
+      { "operation": "revokeSession", "method": "DELETE", "path": "/api/v1/admin/sessions/{sessionId}" },
+      { "operation": "storage", "method": "GET", "path": "/api/v1/admin/storage" },
+      { "operation": "settings", "method": "GET", "path": "/api/v1/admin/settings" },
+      { "operation": "updateSettings", "method": "PATCH", "path": "/api/v1/admin/settings" },
+      { "operation": "shares", "method": "GET", "path": "/api/v1/admin/shares" },
+      { "operation": "revokeShare", "method": "DELETE", "path": "/api/v1/admin/shares/{shareId}" }
+    ],
+    "oauth": [
+      { "operation": "discover", "method": "GET", "path": "/.well-known/oauth-authorization-server" }
+    ]
+  }
+}

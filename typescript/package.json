@@ -1,0 +1,26 @@
+{
+  "name": "imogen-sdk-typescript",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "workspaces": [
+    "packages/*"
+  ],
+  "engines": {
+    "bun": ">=1.2.0"
+  },
+  "scripts": {
+    "build": "bun run --filter '*' build",
+    "test": "bun test",
+    "typecheck": "tsc -p packages/shared && tsc -p packages/sdk",
+    "lint": "biome check .",
+    "lint:fix": "biome check --write .",
+    "verify": "bun run lint && bun run typecheck && bun test",
+    "publish:all": "bun run --filter '*' npm-publish"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "^2.3.0",
+    "@types/bun": "^1.2.20",
+    "typescript": "^5.9.2"
+  }
+}

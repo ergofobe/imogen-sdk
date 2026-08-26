@@ -1,0 +1,139 @@
+{
+  "$comment": "The error envelope and how every port must classify it. `retryable` drives the retry loop and `authError` drives token refresh, so a port that disagrees here misbehaves under load or silently loops on a dead token.",
+  "version": "0.1.0",
+  "codes": [
+    "bad_request",
+    "validation_failed",
+    "unauthorized",
+    "forbidden",
+    "insufficient_scope",
+    "not_found",
+    "conflict",
+    "payload_too_large",
+    "unsupported_media_type",
+    "quota_exceeded",
+    "rate_limited",
+    "internal_error"
+  ],
+  "cases": [
+    {
+      "name": "not found",
+      "status": 404,
+      "body": { "error": { "code": "not_found", "message": "No such asset" } },
+      "expect": {
+        "status": 404,
+        "code": "not_found",
+        "message": "No such asset",
+        "details": null,
+        "retryable": false,
+        "authError": false
+      }
+    },
+    {
+      "name": "validation failure carries field detail",
+      "status": 422,
+      "body": {
+        "error": {
+          "code": "validation_failed",
+          "message": "The request did not validate",
+          "details": {
+            "name": ["Expected at least 1 character"],
+            "assetIds": ["Expected at most 1000 items", "Expected an array"]
+          }
+        }
+      },
+      "expect": {
+        "status": 422,
+        "code": "validation_failed",
+        "message": "The request did not validate",
+        "details": {
+          "name": ["Expected at least 1 character"],
+          "assetIds": ["Expected at most 1000 items", "Expected an array"]
+        },
+        "retryable": false,
+        "authError": false
+      }
+    },
+    {
+      "name": "unauthorized is an auth error, not retryable",
+      "status": 401,
+      "body": { "error": { "code": "unauthorized", "message": "Token expired" } },
+      "expect": {
+        "status": 401,
+        "code": "unauthorized",
+        "message": "Token expired",
+        "details": null,
+        "retryable": false,
+        "authError": true
+      }
+    },
+    {
+      "name": "forbidden is an auth error",
+      "status": 403,
+      "body": { "error": { "code": "insufficient_scope", "message": "Needs library:write" } },
+      "expect": {
+        "status": 403,
+        "code": "insufficient_scope",
+        "message": "Needs library:write",
+        "details": null,
+        "retryable": false,
+        "authError": true
+      }
+    },
+    {
+      "name": "rate limited is retryable",
+      "status": 429,
+      "body": { "error": { "code": "rate_limited", "message": "Slow down" } },
+      "expect": {
+        "status": 429,
+        "code": "rate_limited",
+        "message": "Slow down",
+        "details": null,
+        "retryable": true,
+        "authError": false
+      }
+    },
+    {
+      "name": "server fault is retryable",
+      "status": 503,
+      "body": { "error": { "code": "internal_error", "message": "Upstream unavailable" } },
+      "expect": {
+        "status": 503,
+        "code": "internal_error",
+        "message": "Upstream unavailable",
+        "details": null,
+        "retryable": true,
+        "authError": false
+      }
+    },
+    {
+      "name": "a body that is not the envelope still yields a typed error",
+      "status": 502,
+      "bodyRaw": "<html>Bad Gateway</html>",
+      "expect": {
+        "status": 502,
+        "code": "http_error",
+        "details": null,
+        "retryable": true,
+        "authError": false
+      }
+    }
+  ],
+  "retryPolicy": {
+    "$comment": "Exponential backoff with full jitter, so a fleet of phones retrying after an outage does not arrive in lockstep. Ports assert the bounds, not the sampled value.",
+    "defaultMaxRetries": 2,
+    "baseDelayMs": 250,
+    "formula": "delay(attempt) is in [250 * 2^attempt, 500 * 2^attempt)",
+    "bounds": [
+      { "attempt": 0, "minMs": 250, "maxMs": 500 },
+      { "attempt": 1, "minMs": 500, "maxMs": 1000 },
+      { "attempt": 2, "minMs": 1000, "maxMs": 2000 }
+    ]
+  },
+  "upload": {
+    "$comment": "Shared upload tuning. A port that picks a different threshold uses a different protocol for the same file, which the server notices and the user does not.",
+    "bulkConcurrency": 6,
+    "resumableThresholdBytes": 67108864,
+    "chunkBytes": 8388608
+  }
+}
