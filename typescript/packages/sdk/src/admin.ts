@@ -4,6 +4,7 @@ import type {
   Invite,
   InviteCreate,
   InviteCreated,
+  QueueHealth,
 } from '@imogen/shared'
 import type { HttpClient } from './http.ts'
 
@@ -54,5 +55,27 @@ export class Admin {
 
   revokeInvite(id: string): Promise<void> {
     return this.http.request<void>('DELETE', `/api/v1/admin/invites/${id}`)
+  }
+
+  /** Queue depth, what is running, and what the pipeline gave up on. */
+  queue(): Promise<QueueHealth> {
+    return this.http.request<QueueHealth>('GET', '/api/v1/admin/queue')
+  }
+
+  /** Puts one failed job back in the queue with its attempts cleared. */
+  retryJob(id: string): Promise<void> {
+    return this.http.request<void>('POST', `/api/v1/admin/queue/${id}/retry`)
+  }
+
+  async retryAllJobs(): Promise<number> {
+    const { count } = await this.http.request<{ count: number }>(
+      'POST',
+      '/api/v1/admin/queue/retry',
+    )
+    return count
+  }
+
+  discardJob(id: string): Promise<void> {
+    return this.http.request<void>('DELETE', `/api/v1/admin/queue/${id}`)
   }
 }

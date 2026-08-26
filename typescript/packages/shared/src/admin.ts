@@ -74,3 +74,36 @@ export type InviteCreate = z.infer<typeof InviteCreate>
 /** The one and only time the token is legible. */
 export const InviteCreated = Invite.extend({ token: z.string() })
 export type InviteCreated = z.infer<typeof InviteCreated>
+
+/** One piece of background work, as an administrator needs to see it. */
+export const AdminJob = z.object({
+  id: z.uuid(),
+  name: z.string(),
+  status: z.enum(['queued', 'running', 'done', 'failed']),
+  attempts: z.number().int().nonnegative(),
+  maxAttempts: z.number().int().positive(),
+  lastError: z.string().nullable(),
+  runAt: z.iso.datetime(),
+  createdAt: z.iso.datetime(),
+  finishedAt: z.iso.datetime().nullable(),
+})
+export type AdminJob = z.infer<typeof AdminJob>
+
+/**
+ * The state of the work queue.
+ *
+ * `stuck` counts photographs the pipeline never finished with. They are the reason
+ * this section exists: without it a failed transcode leaves a photo saying
+ * "processing" for ever and nothing anywhere says why.
+ */
+export const QueueHealth = z.object({
+  queued: z.number().int().nonnegative(),
+  running: z.number().int().nonnegative(),
+  failed: z.number().int().nonnegative(),
+  /** Assets left in a pending or processing state, whatever the queue says. */
+  stuck: z.number().int().nonnegative(),
+  /** The oldest thing still waiting, so a jammed queue is obvious. */
+  oldestQueuedAt: z.iso.datetime().nullable(),
+  failures: z.array(AdminJob),
+})
+export type QueueHealth = z.infer<typeof QueueHealth>
