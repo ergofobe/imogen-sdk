@@ -21,6 +21,8 @@ export const DetectedFace = z.object({
   id: z.uuid(),
   assetId: z.uuid(),
   personId: z.uuid().nullable(),
+  /** Null when this person has not been named yet. */
+  personName: z.string().nullable(),
   x: z.number().int(),
   y: z.number().int(),
   width: z.number().int().positive(),
