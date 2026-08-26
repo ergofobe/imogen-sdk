@@ -7,6 +7,9 @@ import type {
   InviteCreate,
   InviteCreated,
   QueueHealth,
+  ServerSettings,
+  ServerSettingsUpdate,
+  StorageReport,
 } from '@imogen/shared'
 import type { HttpClient } from './http.ts'
 
@@ -106,5 +109,19 @@ export class Admin {
   /** Ends a session. Refuses the one making the request. */
   revokeSession(id: string): Promise<void> {
     return this.http.request<void>('DELETE', `/api/v1/admin/sessions/${id}`)
+  }
+
+  /** Where the bytes are, per variant and per account. */
+  storage(): Promise<StorageReport> {
+    return this.http.request<StorageReport>('GET', '/api/v1/admin/storage')
+  }
+
+  settings(): Promise<ServerSettings> {
+    return this.http.request<ServerSettings>('GET', '/api/v1/admin/settings')
+  }
+
+  /** Takes effect at once. The stored value wins over the environment. */
+  updateSettings(patch: ServerSettingsUpdate): Promise<ServerSettings> {
+    return this.http.request<ServerSettings>('PATCH', '/api/v1/admin/settings', { body: patch })
   }
 }

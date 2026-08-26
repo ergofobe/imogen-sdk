@@ -143,3 +143,48 @@ export const AdminSession = z.object({
   current: z.boolean(),
 })
 export type AdminSession = z.infer<typeof AdminSession>
+
+/** Where the bytes are, and what is not accounted for. */
+export const StorageReport = z.object({
+  dataDir: z.string(),
+  /** What the library is using, by variant. */
+  originalBytes: z.number().int().nonnegative(),
+  derivativeBytes: z.number().int().nonnegative(),
+  /** Assets in the trash, and how long they have before the sweep takes them. */
+  trashedCount: z.number().int().nonnegative(),
+  trashedBytes: z.number().int().nonnegative(),
+  trashRetentionDays: z.number().int().positive(),
+  /** The next thing due to be destroyed, so the sweep is not a black box. */
+  nextSweepAt: z.iso.datetime().nullable(),
+  /**
+   * Rows whose file is missing. Counted rather than listed: the number is what tells
+   * you whether something has gone wrong underneath the library.
+   */
+  missingFiles: z.number().int().nonnegative(),
+  perUser: z.array(
+    z.object({
+      userId: z.uuid(),
+      email: z.string(),
+      usedBytes: z.number().int().nonnegative(),
+      photoCount: z.number().int().nonnegative(),
+    }),
+  ),
+})
+export type StorageReport = z.infer<typeof StorageReport>
+
+/**
+ * Settings that can be changed without restarting the server.
+ *
+ * Each one has an environment variable behind it that used to be the only way to set
+ * it. What is stored here wins when present, so a deployment that sets nothing keeps
+ * behaving exactly as it did.
+ */
+export const ServerSettings = z.object({
+  allowSignup: z.boolean(),
+  trashRetentionDays: z.number().int().min(1).max(365),
+  facesEnabled: z.boolean(),
+})
+export type ServerSettings = z.infer<typeof ServerSettings>
+
+export const ServerSettingsUpdate = ServerSettings.partial()
+export type ServerSettingsUpdate = z.infer<typeof ServerSettingsUpdate>
