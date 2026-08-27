@@ -99,6 +99,7 @@ describe('endpoint table', () => {
     'assets.trash': (c) => c.assets.trash(['ASSET']),
     'assets.restore': (c) => c.assets.restore(['ASSET']),
     'assets.timeline': (c) => c.assets.timeline(),
+    'assets.timelineBucket': (c) => c.assets.timelineBucket({ period: '2024-06' }),
     'assets.stats': (c) => c.assets.stats(),
     'assets.variant': (c) => c.assets.blob('ASSET', 'thumbnail'),
     'assets.download': (c) => c.http.send('GET', '/api/v1/assets/ASSET/download'),
@@ -275,7 +276,7 @@ describe('models decode as the contract says', () => {
 
   test('the timeline bucket fixture decodes', () => {
     for (const bucket of models.timeline.payload.buckets) {
-      expect(TimelineBucket.parse(bucket)).toEqual(bucket)
+      expect(TimelineBucket.parse(bucket)).toEqual({ ...bucket, coverAssetId: null })
     }
   })
 })

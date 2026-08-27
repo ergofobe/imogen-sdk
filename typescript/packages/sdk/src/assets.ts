@@ -9,6 +9,8 @@ import type {
   ShareLink,
   ShareLinkCreate,
   TimelineBucket,
+  TimelineBucketQuery,
+  TimelineTile,
   UploadSession,
 } from '@imogen/shared'
 import {
@@ -96,6 +98,13 @@ export class Assets {
 
   timeline(): Promise<{ buckets: TimelineBucket[] }> {
     return this.http.request('GET', '/api/v1/assets/timeline')
+  }
+
+  /** One page of grid tiles for a period — the timeline's lazy fetch as it scrubs. */
+  timelineBucket(
+    query: Partial<TimelineBucketQuery>,
+  ): Promise<{ items: TimelineTile[]; nextCursor: string | null }> {
+    return this.http.request('GET', '/api/v1/assets/timeline/bucket', { query })
   }
 
   stats(): Promise<LibraryStats> {
