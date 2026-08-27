@@ -18,9 +18,12 @@ export const PersonWithPhotos = Person.extend({
     .array(Asset)
     .describe(
       'A cover sample, not every photo of this person: at most 60 photographs, ' +
-        'newest (capturedAt desc, id desc) first. For all of them, page GET /assets ' +
-        "or GET /assets/timeline/bucket with personId set to this person's id — " +
-        "`photoCount` above is the true total, not this array's length.",
+        'newest (capturedAt desc, id desc) first. `photoCount` above counts faces ' +
+        'attributed to this person, not distinct photographs, so it can exceed the ' +
+        'number of photos here when they appear more than once in one frame (a ' +
+        'mirror, a group shot with a repeated detection). For an exact photograph ' +
+        'count, or all of them, page GET /assets/timeline/bucket with personId set ' +
+        "to this person's id.",
     ),
 })
 export type PersonWithPhotos = z.infer<typeof PersonWithPhotos>
