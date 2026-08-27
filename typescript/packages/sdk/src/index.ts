@@ -15,6 +15,10 @@ export type {
   FaceStatus,
   LibraryStats,
   OAuthScope,
+  PairingClaim,
+  PairingClaimRequest,
+  PairingStatus,
+  PairingTicket,
   Person,
   PersonUpdate,
   PersonWithPhotos,
@@ -49,5 +53,6 @@ export {
   type PendingAuthorization,
   type StoredTokens,
 } from './oauth.ts'
+export { Pairing } from './pairing.ts'
 export { People } from './people.ts'
 export { Vault, type VaultStatus } from './vault.ts'

@@ -20,10 +20,12 @@ from .models import (
     DEFAULT_SCOPES,
     AuthorizationServerMetadata,
     ClientRegistrationResponse,
+    PairingClaim,
+    PairingClaimRequest,
     TokenResponse,
 )
 
-__all__ = ["OAuthClient", "PendingAuthorization", "StoredTokens"]
+__all__ = ["OAuthClient", "PairedDevice", "PendingAuthorization", "StoredTokens"]
 
 
 @dataclass(frozen=True)
@@ -50,6 +52,16 @@ class StoredTokens:
 
 class OAuthError(Exception):
     pass
+
+
+@dataclass(frozen=True)
+class PairedDevice:
+    """What comes back from :meth:`OAuthClient.pair`: an account, and its client."""
+
+    #: Registered for this device alone. Needed again to refresh.
+    client_id: str
+    tokens: StoredTokens
+    scope: str
 
 
 class OAuthClient:
@@ -164,6 +176,57 @@ class OAuthClient:
                 "redirect_uri": pending.redirect_uri,
             }
         )
+
+    async def pair(
+        self,
+        pairing_code: str,
+        client_name: str,
+        redirect_uri: str,
+        device_name: str | None = None,
+        scopes: Sequence[str] = DEFAULT_SCOPES,
+    ) -> PairedDevice:
+        """The whole pairing sequence, from a scanned QR code to tokens.
+
+        Registers a client for this device, spends the pairing code on an authorization
+        code, and exchanges it. The verifier never leaves this process, so the pairing code
+        on its own — photographed off somebody's screen, say — cannot be turned into a
+        session.
+        """
+        registered = await self.register(client_name, [redirect_uri], scopes)
+        verifier = _random_string()
+
+        request = PairingClaimRequest(
+            code=pairing_code,
+            client_id=registered.client_id,
+            redirect_uri=redirect_uri,
+            code_challenge=_s256(verifier),
+            scope=" ".join(scopes),
+            device_name=device_name,
+        )
+        response = await self._client.post(
+            f"{self.base_url}/api/v1/pairing/claim",
+            json=request.model_dump(by_alias=True, exclude_none=True),
+        )
+        if response.is_error:
+            # The imogen error envelope, not the OAuth one: this is an API route.
+            described = "That pairing code could not be used"
+            try:
+                described = response.json()["error"]["message"]
+            except Exception:  # noqa: BLE001 — any malformed body means we keep the default.
+                pass
+            raise OAuthError(described)
+
+        claim = PairingClaim.model_validate(response.json())
+        tokens = await self._exchange(
+            {
+                "grant_type": "authorization_code",
+                "client_id": registered.client_id,
+                "code": claim.code,
+                "code_verifier": verifier,
+                "redirect_uri": claim.redirect_uri,
+            }
+        )
+        return PairedDevice(client_id=registered.client_id, tokens=tokens, scope=claim.scope)
 
     async def refresh(self, client_id: str, refresh_token: str) -> StoredTokens:
         return await self._exchange(

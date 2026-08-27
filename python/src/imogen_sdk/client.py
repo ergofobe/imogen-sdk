@@ -7,7 +7,7 @@ import httpx
 
 from .http import HttpClient, TokenProvider
 from .models import Health
-from .resources import Admin, Albums, Assets, Auth, People, Vault
+from .resources import Admin, Albums, Assets, Auth, Pairing, People, Vault
 
 __all__ = ["ImogenClient"]
 
@@ -45,6 +45,7 @@ class ImogenClient:
         self.auth = Auth(self.http)
         self.vault = Vault(self.http)
         self.people = People(self.http)
+        self.pairing = Pairing(self.http)
 
     @property
     def base_url(self) -> str:

@@ -20,6 +20,7 @@ class ImogenClient(options: ClientOptions) : AutoCloseable {
     val auth: Auth = Auth(http)
     val vault: Vault = Vault(http)
     val people: People = People(http)
+    val pairing: Pairing = Pairing(http)
 
     constructor(baseUrl: String, token: String? = null) : this(
         ClientOptions(baseUrl = baseUrl, token = token?.let { { it } })

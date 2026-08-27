@@ -55,6 +55,11 @@ __all__ = [
     "LoginRequest",
     "OAuthScope",
     "OidcConfig",
+    "PAIRING_URI_SCHEME",
+    "PairingClaim",
+    "PairingClaimRequest",
+    "PairingStatus",
+    "PairingTicket",
     "PasswordChangeRequest",
     "Person",
     "PersonUpdate",
@@ -482,6 +487,58 @@ class AuthorizationServerMetadata(Wire):
     revocation_endpoint: str = ""
     scopes_supported: list[str] = Field(default_factory=list)
     code_challenge_methods_supported: list[str] = Field(default_factory=list)
+
+
+# --- pairing ---
+
+
+class PairingTicket(Contract):
+    """A ticket a signed-in browser makes so a device is never asked for a hostname."""
+
+    id: str
+    #: The one-time secret. Legible only in the response that created the ticket.
+    code: str
+    server_url: str
+    #: Server and secret in one string — this is what goes into the QR code.
+    uri: str
+    expires_at: str
+
+
+class PairingStatus(Contract):
+    id: str
+    expires_at: str
+    #: None until a device takes the ticket.
+    claimed_at: str | None = None
+    device_name: str | None = None
+
+
+class PairingClaimRequest(Contract):
+    code: str
+    #: The client the device registered for itself through RFC 7591.
+    client_id: str
+    redirect_uri: str
+    code_challenge: str
+    code_challenge_method: str = "S256"
+    #: Space-separated. None to take everything a paired device is allowed.
+    scope: str | None = None
+    #: Shown to whoever made the ticket, and in the connected-applications list.
+    device_name: str | None = None
+
+
+class PairingClaim(Contract):
+    """An ordinary authorization code.
+
+    Exchange it at the token endpoint with the verifier that produced the challenge; on
+    its own it grants nothing.
+    """
+
+    code: str
+    redirect_uri: str
+    scope: str
+
+
+#: The scheme an application registers so ``imogen://pair?…`` opens it.
+PAIRING_URI_SCHEME = "imogen"
 
 
 # --- people ---

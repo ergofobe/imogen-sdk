@@ -164,6 +164,18 @@ enum Conformance {
             case "admin.shares": _ = try await client.admin.shares()
             case "admin.revokeShare": try await client.admin.revokeShare("SHARE")
 
+            case "pairing.create": _ = try await client.pairing.create()
+            case "pairing.status": _ = try await client.pairing.status("TICKET")
+            case "pairing.claim":
+                _ = try await client.pairing.claim(
+                    PairingClaimRequest(
+                        code: "imog_pair_x",
+                        clientId: "CLIENT",
+                        redirectUri: "imogen://oauth",
+                        codeChallenge: String(repeating: "x", count: 43)
+                    )
+                )
+
             case "oauth.discover":
                 _ = try await client.http.send("GET", "/.well-known/oauth-authorization-server")
 
@@ -179,7 +191,7 @@ enum Conformance {
         "{assetId}": "ASSET", "{albumId}": "ALBUM", "{personId}": "PERSON",
         "{faceId}": "FACE", "{userId}": "USER", "{inviteId}": "INVITE",
         "{jobId}": "JOB", "{clientId}": "CLIENT", "{sessionId}": "SESSION",
-        "{shareId}": "SHARE", "{variant}": "thumbnail",
+        "{shareId}": "SHARE", "{ticketId}": "TICKET", "{variant}": "thumbnail",
     ]
 
     static func concrete(_ path: String) -> String {
@@ -281,6 +293,10 @@ enum Conformance {
         try check(StorageReport.self, "storageReport")
         try check(ServerSettings.self, "serverSettings")
         try check(TokenResponse.self, "tokenResponse")
+        try check(PairingTicket.self, "pairingTicket")
+        try check(PairingStatus.self, "pairingStatusUnclaimed")
+        try check(PairingStatus.self, "pairingStatusClaimed")
+        try check(PairingClaim.self, "pairingClaim")
     }
 
     // MARK: Errors
@@ -399,6 +415,27 @@ enum Conformance {
 
         expectTrue(refreshed.value)
         expectEqual(StubState.shared.callCount, 2)
+    }
+
+    /// A camera pointed at the world reads a great many things that are not a pairing
+    /// invitation, so the parser has to be as good at saying no as at saying yes.
+    static func testReadsAPairingInvitation() {
+        let fromQR = PairingInvitation(
+            scanned: "imogen://pair?server=https%3A%2F%2Fphotos.example.com&code=imog_pair_x")
+        expectEqual(fromQR?.serverURL, "https://photos.example.com", "QR server")
+        expectEqual(fromQR?.code, "imog_pair_x", "QR code")
+
+        // A link tapped in the browser carries the server implicitly: it came from it.
+        let fromLink = PairingInvitation(scanned: "https://photos.example.com/pair?code=abc")
+        expectEqual(fromLink?.serverURL, "https://photos.example.com", "link server")
+        expectEqual(fromLink?.code, "abc", "link code")
+
+        let withPort = PairingInvitation(scanned: "http://192.168.1.9:3000/pair?code=abc")
+        expectEqual(withPort?.serverURL, "http://192.168.1.9:3000", "port kept")
+
+        expectNil(PairingInvitation(scanned: "https://example.com/holiday"), "no code")
+        expectNil(PairingInvitation(scanned: "not a url at all "), "not a URL")
+        expectNil(PairingInvitation(scanned: "mailto:someone@example.com?code=abc"), "wrong scheme")
     }
 
     static func testBuildsImageURLsWithoutARequest() {

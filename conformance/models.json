@@ -132,8 +132,16 @@
     }
   },
   "albumAssetsResult": {
-    "payload": { "added": 12, "skipped": 3, "assetCount": 99 },
-    "assert": { "added": 12, "skipped": 3, "assetCount": 99 }
+    "payload": {
+      "added": 12,
+      "skipped": 3,
+      "assetCount": 99
+    },
+    "assert": {
+      "added": 12,
+      "skipped": 3,
+      "assetCount": 99
+    }
   },
   "shareLink": {
     "payload": {
@@ -178,9 +186,15 @@
     "payload": {
       "allowSignup": false,
       "needsSetup": false,
-      "oidc": { "enabled": false }
+      "oidc": {
+        "enabled": false
+      }
     },
-    "assert": { "allowSignup": false, "needsSetup": false, "oidc.enabled": false }
+    "assert": {
+      "allowSignup": false,
+      "needsSetup": false,
+      "oidc.enabled": false
+    }
   },
   "authConfigOidcOn": {
     "payload": {
@@ -208,7 +222,11 @@
       "photoCount": 214,
       "hidden": false
     },
-    "assert": { "name": "Ada", "photoCount": 214, "hidden": false }
+    "assert": {
+      "name": "Ada",
+      "photoCount": 214,
+      "hidden": false
+    }
   },
   "personUnnamed": {
     "payload": {
@@ -218,7 +236,11 @@
       "photoCount": 3,
       "hidden": true
     },
-    "assert": { "name": null, "coverFaceId": null, "hidden": true }
+    "assert": {
+      "name": null,
+      "coverFaceId": null,
+      "hidden": true
+    }
   },
   "detectedFace": {
     "payload": {
@@ -232,37 +254,82 @@
       "height": 256,
       "score": 0.987
     },
-    "assert": { "x": 1024, "y": 768, "width": 256, "score": 0.987, "personName": "Ada" }
+    "assert": {
+      "x": 1024,
+      "y": 768,
+      "width": 256,
+      "score": 0.987,
+      "personName": "Ada"
+    }
   },
   "faceStatus": {
     "payload": {
       "enabled": true,
       "modelsReady": false,
       "models": [
-        { "name": "detector", "present": true, "bytes": 1048576, "expectedBytes": 1048576 },
-        { "name": "recogniser", "present": false, "bytes": 524288, "expectedBytes": 4194304 }
+        {
+          "name": "detector",
+          "present": true,
+          "bytes": 1048576,
+          "expectedBytes": 1048576
+        },
+        {
+          "name": "recogniser",
+          "present": false,
+          "bytes": 524288,
+          "expectedBytes": 4194304
+        }
       ],
       "peopleCount": 42,
       "pending": 118
     },
-    "assert": { "enabled": true, "modelsReady": false, "peopleCount": 42, "pending": 118 }
+    "assert": {
+      "enabled": true,
+      "modelsReady": false,
+      "peopleCount": 42,
+      "pending": 118
+    }
   },
   "vaultStatusLocked": {
-    "payload": { "configured": true, "unlocked": false },
-    "assert": { "configured": true, "unlocked": false, "count": null }
+    "payload": {
+      "configured": true,
+      "unlocked": false
+    },
+    "assert": {
+      "configured": true,
+      "unlocked": false,
+      "count": null
+    }
   },
   "vaultStatusUnlocked": {
-    "payload": { "configured": true, "unlocked": true, "count": 17 },
-    "assert": { "configured": true, "unlocked": true, "count": 17 }
+    "payload": {
+      "configured": true,
+      "unlocked": true,
+      "count": 17
+    },
+    "assert": {
+      "configured": true,
+      "unlocked": true,
+      "count": 17
+    }
   },
   "timeline": {
     "payload": {
       "buckets": [
-        { "date": "2024-06-01", "count": 12 },
-        { "date": "2024-05-31", "count": 4 }
+        {
+          "date": "2024-06-01",
+          "count": 12
+        },
+        {
+          "date": "2024-05-31",
+          "count": 4
+        }
       ]
     },
-    "assert": { "buckets.0.date": "2024-06-01", "buckets.0.count": 12 }
+    "assert": {
+      "buckets.0.date": "2024-06-01",
+      "buckets.0.count": 12
+    }
   },
   "libraryStats": {
     "payload": {
@@ -290,7 +357,11 @@
       "expiresAt": "2024-06-02T12:00:00.000Z",
       "existing": null
     },
-    "assert": { "offset": 0, "sizeBytes": 134217728, "existing": null }
+    "assert": {
+      "offset": 0,
+      "sizeBytes": 134217728,
+      "existing": null
+    }
   },
   "adminUser": {
     "payload": {
@@ -369,8 +440,16 @@
     }
   },
   "serverSettings": {
-    "payload": { "allowSignup": true, "trashRetentionDays": 30, "facesEnabled": false },
-    "assert": { "allowSignup": true, "trashRetentionDays": 30, "facesEnabled": false }
+    "payload": {
+      "allowSignup": true,
+      "trashRetentionDays": 30,
+      "facesEnabled": false
+    },
+    "assert": {
+      "allowSignup": true,
+      "trashRetentionDays": 30,
+      "facesEnabled": false
+    }
   },
   "tokenResponse": {
     "payload": {
@@ -385,6 +464,58 @@
       "token_type": "Bearer",
       "expires_in": 3600,
       "refresh_token": "rt_def456"
+    }
+  },
+  "pairingTicket": {
+    "payload": {
+      "id": "6f8b0f4e-4f7a-4a2f-9d3e-0b4d2c1a7e55",
+      "code": "imog_pair_5N0k2Q",
+      "serverUrl": "https://photos.example.com",
+      "uri": "imogen://pair?server=https%3A%2F%2Fphotos.example.com&code=imog_pair_5N0k2Q",
+      "expiresAt": "2030-01-01T00:05:00.000Z"
+    },
+    "assert": {
+      "id": "6f8b0f4e-4f7a-4a2f-9d3e-0b4d2c1a7e55",
+      "code": "imog_pair_5N0k2Q",
+      "serverUrl": "https://photos.example.com",
+      "expiresAt": "2030-01-01T00:05:00.000Z"
+    }
+  },
+  "pairingStatusUnclaimed": {
+    "payload": {
+      "id": "6f8b0f4e-4f7a-4a2f-9d3e-0b4d2c1a7e55",
+      "expiresAt": "2030-01-01T00:05:00.000Z",
+      "claimedAt": null,
+      "deviceName": null
+    },
+    "assert": {
+      "id": "6f8b0f4e-4f7a-4a2f-9d3e-0b4d2c1a7e55",
+      "claimedAt": null,
+      "deviceName": null
+    }
+  },
+  "pairingStatusClaimed": {
+    "payload": {
+      "id": "6f8b0f4e-4f7a-4a2f-9d3e-0b4d2c1a7e55",
+      "expiresAt": "2030-01-01T00:05:00.000Z",
+      "claimedAt": "2030-01-01T00:01:00.000Z",
+      "deviceName": "Pixel 8"
+    },
+    "assert": {
+      "claimedAt": "2030-01-01T00:01:00.000Z",
+      "deviceName": "Pixel 8"
+    }
+  },
+  "pairingClaim": {
+    "payload": {
+      "code": "imog_code_9xQ2",
+      "redirectUri": "imogen://oauth",
+      "scope": "library:read library:write albums:read albums:write profile"
+    },
+    "assert": {
+      "code": "imog_code_9xQ2",
+      "redirectUri": "imogen://oauth",
+      "scope": "library:read library:write albums:read albums:write profile"
     }
   }
 }

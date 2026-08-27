@@ -10,7 +10,19 @@ use tokio::sync::Mutex;
 use url::Url;
 
 use crate::error::{Error, Result};
-use crate::models::{AuthorizationServerMetadata, ClientRegistrationResponse, TokenResponse};
+use crate::models::{
+    AuthorizationServerMetadata, ClientRegistrationResponse, PairingClaim, PairingClaimRequest,
+    TokenResponse,
+};
+
+/// What comes back from [`OAuthClient::pair`]: an account, and the client it belongs to.
+#[derive(Debug, Clone, PartialEq)]
+pub struct PairedDevice {
+    /// Registered for this device alone. Needed again to refresh.
+    pub client_id: String,
+    pub tokens: StoredTokens,
+    pub scope: String,
+}
 
 /// Hold these until the redirect comes back; they complete the exchange.
 #[derive(Debug, Clone, PartialEq)]
@@ -189,6 +201,69 @@ impl OAuthClient {
             ("redirect_uri", &pending.redirect_uri),
         ])
         .await
+    }
+
+    /// The whole pairing sequence, from a scanned QR code to tokens.
+    ///
+    /// Registers a client for this device, spends the pairing code on an authorization
+    /// code, and exchanges it. The verifier never leaves this process, so the pairing code
+    /// on its own — photographed off somebody's screen, say — cannot be turned into a
+    /// session.
+    pub async fn pair(
+        &self,
+        pairing_code: &str,
+        client_name: &str,
+        redirect_uri: &str,
+        device_name: Option<&str>,
+        scopes: Option<&[String]>,
+    ) -> Result<PairedDevice> {
+        let registered = self
+            .register(client_name, &[redirect_uri.to_string()], scopes)
+            .await?;
+        let verifier = random_string(32);
+
+        let mut request = PairingClaimRequest::new(
+            pairing_code,
+            &registered.client_id,
+            redirect_uri,
+            s256(&verifier),
+        );
+        request.scope = Some(scope_string(scopes));
+        request.device_name = device_name.map(str::to_string);
+
+        let response = self
+            .http
+            .post(format!("{}/api/v1/pairing/claim", self.base_url))
+            .json(&request)
+            .send()
+            .await?;
+
+        if !response.status().is_success() {
+            let body = response.text().await.unwrap_or_default();
+            // The imogen error envelope, not the OAuth one: this is an API route.
+            let described = serde_json::from_str::<Value>(&body)
+                .ok()
+                .and_then(|v| v.get("error")?.get("message")?.as_str().map(str::to_string))
+                .unwrap_or_else(|| "That pairing code could not be used".into());
+            return Err(Error::Oauth(described));
+        }
+
+        let claim: PairingClaim = serde_json::from_str(&response.text().await?)?;
+        let tokens = self
+            .exchange(&[
+                ("grant_type", "authorization_code"),
+                ("client_id", &registered.client_id),
+                ("code", &claim.code),
+                ("code_verifier", &verifier),
+                ("redirect_uri", &claim.redirect_uri),
+            ])
+            .await?;
+
+        Ok(PairedDevice {
+            client_id: registered.client_id,
+            tokens,
+            scope: claim.scope,
+        })
     }
 
     pub async fn refresh(&self, client_id: &str, refresh_token: &str) -> Result<StoredTokens> {

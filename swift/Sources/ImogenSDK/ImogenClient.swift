@@ -20,6 +20,7 @@ public struct ImogenClient: Sendable {
     public let auth: Auth
     public let vault: Vault
     public let people: People
+    public let pairing: Pairing
 
     public init(options: ClientOptions) {
         let http = HTTPClient(options: options)
@@ -30,6 +31,7 @@ public struct ImogenClient: Sendable {
         self.auth = Auth(http: http)
         self.vault = Vault(http: http)
         self.people = People(http: http)
+        self.pairing = Pairing(http: http)
     }
 
     public init(baseURL: String, token: String? = nil, session: URLSession = .shared) {

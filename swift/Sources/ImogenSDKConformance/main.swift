@@ -75,6 +75,9 @@ await scenario("sends the bearer token") {
 await scenario("asks for a fresh token once when the server rejects the old one") {
     try await Conformance.testAsksForAFreshTokenOnceWhenTheServerRejectsTheOldOne()
 }
+await scenario("reads a pairing invitation, and refuses everything else") {
+    Conformance.testReadsAPairingInvitation()
+}
 await scenario("builds image URLs without a request") {
     Conformance.testBuildsImageURLsWithoutARequest()
 }

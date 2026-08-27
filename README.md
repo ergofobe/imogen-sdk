@@ -23,6 +23,7 @@ imogen.albums    collections, and the links that publish them
 imogen.people    face grouping, when the server has it switched on
 imogen.vault     photographs kept out of the library entirely
 imogen.auth      signing in, and who you are
+imogen.pairing   handing a phone an account without typing a hostname
 imogen.admin     accounts, invitations, the work queue, storage, settings
 ```
 
@@ -87,6 +88,14 @@ send it twice.
 **OAuth without a secret.** Each port ships an OAuth 2.1 client doing authorization code
 with PKCE and RFC 7591 dynamic registration, because a client secret shipped inside a
 mobile app is not a secret.
+
+**Pairing is one gesture, not a form.** A new phone does not know which server to sign in
+to, and asking it to is the worst moment in installing a self-hosted app. So the browser,
+which already knows the address and is already signed in, makes a one-time ticket and
+renders it as a QR code; `oauth.pair(…)` reads the server and the code out of it,
+registers a client, and comes back with tokens. What crosses the camera is a ticket, not a
+token: it buys one authorization code, bound to a PKCE challenge that never left the
+device.
 
 ## Working on it
 

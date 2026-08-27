@@ -16,6 +16,7 @@ import io.ktor.http.isSuccess
 import io.ktor.http.parameters
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import java.security.MessageDigest
@@ -42,6 +43,14 @@ data class StoredTokens(
 }
 
 class OAuthException(message: String) : Exception(message)
+
+/** What comes back from [OAuthClient.pair]: an account, and the client it belongs to. */
+data class PairedDevice(
+    /** Registered for this device alone. Needed again to refresh. */
+    val clientId: String,
+    val tokens: StoredTokens,
+    val scope: String,
+)
 
 /**
  * The OAuth 2.1 client a native application needs: discover the server, register itself, run
@@ -162,6 +171,66 @@ class OAuthClient(baseUrl: String, engine: KtorClient? = null) : AutoCloseable {
         )
     }
 
+    /**
+     * The whole pairing sequence, from a scanned QR code to tokens.
+     *
+     * Registers a client for this device, spends the pairing code on an authorization code,
+     * and exchanges it. The verifier never leaves this process, so the pairing code on its
+     * own — photographed off somebody's screen, say — cannot be turned into a session.
+     *
+     * ```kotlin
+     * val invitation = parsePairingUri(scanned) ?: return
+     * val oauth = OAuthClient(invitation.serverUrl)
+     * val paired = oauth.pair(invitation.code, "imogen for Android", "imogen://oauth", Build.MODEL)
+     * ```
+     */
+    suspend fun pair(
+        pairingCode: String,
+        clientName: String,
+        redirectUri: String,
+        deviceName: String? = null,
+        scopes: List<String> = DEFAULT_SCOPES,
+    ): PairedDevice {
+        val registered = register(clientName, listOf(redirectUri), scopes)
+        val verifier = randomString(32)
+
+        val response = http.post("$baseUrl/api/v1/pairing/claim") {
+            contentType(ContentType.Application.Json)
+            setBody(
+                wireJson.encodeToString(
+                    PairingClaimRequest(
+                        code = pairingCode,
+                        clientId = registered.clientId,
+                        redirectUri = redirectUri,
+                        codeChallenge = s256(verifier),
+                        scope = scopes.joinToString(" "),
+                        deviceName = deviceName,
+                    )
+                )
+            )
+        }
+        if (!response.status.isSuccess()) {
+            // The imogen error envelope, not the OAuth one: this is an API route.
+            val described = runCatching {
+                wireJson.parseToJsonElement(response.bodyAsText())
+                    .jsonObject["error"]?.jsonObject?.get("message")?.jsonPrimitive?.content
+            }.getOrNull()
+            throw OAuthException(described ?: "That pairing code could not be used")
+        }
+
+        val claim = wireJson.decodeFromString<PairingClaim>(response.bodyAsText())
+        val tokens = exchange(
+            mapOf(
+                "grant_type" to "authorization_code",
+                "client_id" to registered.clientId,
+                "code" to claim.code,
+                "code_verifier" to verifier,
+                "redirect_uri" to claim.redirectUri,
+            )
+        )
+        return PairedDevice(registered.clientId, tokens, claim.scope)
+    }
+
     suspend fun refresh(clientId: String, refreshToken: String): StoredTokens = exchange(
         mapOf(
             "grant_type" to "refresh_token",
@@ -210,11 +279,11 @@ class OAuthClient(baseUrl: String, engine: KtorClient? = null) : AutoCloseable {
 private val encoder: Base64.Encoder = Base64.getUrlEncoder().withoutPadding()
 private val random = SecureRandom()
 
-private fun randomString(byteLength: Int): String {
+internal fun randomString(byteLength: Int): String {
     val bytes = ByteArray(byteLength)
     random.nextBytes(bytes)
     return encoder.encodeToString(bytes)
 }
 
-private fun s256(verifier: String): String =
+internal fun s256(verifier: String): String =
     encoder.encodeToString(MessageDigest.getInstance("SHA-256").digest(verifier.toByteArray()))

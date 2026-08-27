@@ -35,6 +35,10 @@ from imogen_sdk import (
     ImogenError,
     LibraryStats,
     LoginRequest,
+    PairingClaim,
+    PairingClaimRequest,
+    PairingStatus,
+    PairingTicket,
     PasswordChangeRequest,
     Person,
     PersonUpdate,
@@ -63,6 +67,7 @@ PLACEHOLDERS = {
     "{clientId}": "CLIENT",
     "{sessionId}": "SESSION",
     "{shareId}": "SHARE",
+    "{ticketId}": "TICKET",
     "{variant}": "thumbnail",
 }
 
@@ -193,6 +198,16 @@ async def invoke(client: ImogenClient, key: str, big_file: Path, small_file: Pat
         ),
         "admin.shares": lambda: client.admin.shares(),
         "admin.revokeShare": lambda: client.admin.revoke_share("SHARE"),
+        "pairing.create": lambda: client.pairing.create(),
+        "pairing.status": lambda: client.pairing.status("TICKET"),
+        "pairing.claim": lambda: client.pairing.claim(
+            PairingClaimRequest(
+                code="imog_pair_x",
+                client_id="CLIENT",
+                redirect_uri="imogen://oauth",
+                code_challenge="x" * 43,
+            )
+        ),
         "oauth.discover": lambda: client.http.send(
             "GET", "/.well-known/oauth-authorization-server"
         ),
@@ -275,6 +290,10 @@ MODEL_TYPES = {
     "storageReport": StorageReport,
     "serverSettings": ServerSettings,
     "tokenResponse": TokenResponse,
+    "pairingTicket": PairingTicket,
+    "pairingStatusUnclaimed": PairingStatus,
+    "pairingStatusClaimed": PairingStatus,
+    "pairingClaim": PairingClaim,
 }
 
 

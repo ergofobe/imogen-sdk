@@ -167,6 +167,17 @@ describe('endpoint table', () => {
     'admin.shares': (c) => c.admin.shares(),
     'admin.revokeShare': (c) => c.admin.revokeShare('SHARE'),
 
+    'pairing.create': (c) => c.pairing.create(),
+    'pairing.status': (c) => c.pairing.status('TICKET'),
+    'pairing.claim': (c) =>
+      c.pairing.claim({
+        code: 'imog_pair_x',
+        clientId: 'CLIENT',
+        redirectUri: 'imogen://oauth',
+        codeChallenge: 'x'.repeat(43),
+        codeChallengeMethod: 'S256',
+      }),
+
     'oauth.discover': (c) => c.http.send('GET', '/.well-known/oauth-authorization-server'),
   }
 
@@ -181,6 +192,7 @@ describe('endpoint table', () => {
     clientId: 'CLIENT',
     sessionId: 'SESSION',
     shareId: 'SHARE',
+    ticketId: 'TICKET',
     variant: 'thumbnail',
   }
 

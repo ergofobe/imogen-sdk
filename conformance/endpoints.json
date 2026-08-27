@@ -89,6 +89,11 @@
       { "operation": "shares", "method": "GET", "path": "/api/v1/admin/shares" },
       { "operation": "revokeShare", "method": "DELETE", "path": "/api/v1/admin/shares/{shareId}" }
     ],
+    "pairing": [
+      { "operation": "create", "method": "POST", "path": "/api/v1/pairing" },
+      { "operation": "status", "method": "GET", "path": "/api/v1/pairing/{ticketId}" },
+      { "operation": "claim", "method": "POST", "path": "/api/v1/pairing/claim" }
+    ],
     "oauth": [
       { "operation": "discover", "method": "GET", "path": "/.well-known/oauth-authorization-server" }
     ]

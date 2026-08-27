@@ -607,6 +607,83 @@ pub struct AuthorizationServerMetadata {
     pub code_challenge_methods_supported: Vec<String>,
 }
 
+// --- pairing ---
+
+/// A ticket a signed-in browser makes so a device does not have to be told where the
+/// server is. See [`crate::Pairing`].
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PairingTicket {
+    pub id: String,
+    /// The one-time secret. Legible only in the response that created the ticket.
+    pub code: String,
+    pub server_url: String,
+    /// Server and secret in one string — this is what goes into the QR code.
+    pub uri: String,
+    pub expires_at: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PairingStatus {
+    pub id: String,
+    pub expires_at: String,
+    /// None until a device takes the ticket.
+    #[serde(default)]
+    pub claimed_at: Option<String>,
+    #[serde(default)]
+    pub device_name: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PairingClaimRequest {
+    pub code: String,
+    /// The client the device registered for itself through RFC 7591.
+    pub client_id: String,
+    pub redirect_uri: String,
+    pub code_challenge: String,
+    pub code_challenge_method: String,
+    /// Space-separated. None to take everything a paired device is allowed.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub scope: Option<String>,
+    /// Shown to whoever made the ticket, and in the connected-applications list.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub device_name: Option<String>,
+}
+
+impl PairingClaimRequest {
+    pub fn new(
+        code: impl Into<String>,
+        client_id: impl Into<String>,
+        redirect_uri: impl Into<String>,
+        code_challenge: impl Into<String>,
+    ) -> Self {
+        Self {
+            code: code.into(),
+            client_id: client_id.into(),
+            redirect_uri: redirect_uri.into(),
+            code_challenge: code_challenge.into(),
+            code_challenge_method: "S256".into(),
+            scope: None,
+            device_name: None,
+        }
+    }
+}
+
+/// An ordinary authorization code. Exchange it at the token endpoint with the verifier
+/// that produced the challenge; on its own it grants nothing.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PairingClaim {
+    pub code: String,
+    pub redirect_uri: String,
+    pub scope: String,
+}
+
+/// The scheme an application registers so `imogen://pair?…` opens it.
+pub const PAIRING_URI_SCHEME: &str = "imogen";
+
 // --- people ---
 
 /// One cluster of faces the library believes belong to the same person.

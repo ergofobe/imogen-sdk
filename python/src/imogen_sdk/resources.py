@@ -45,6 +45,10 @@ from .models import (
     InviteCreated,
     LibraryStats,
     LoginRequest,
+    PairingClaim,
+    PairingClaimRequest,
+    PairingStatus,
+    PairingTicket,
     PasswordChangeRequest,
     Person,
     PersonUpdate,
@@ -409,6 +413,45 @@ class People(_Resource):
     def thumbnail_url(self, face_id: str) -> str:
         """A person's thumbnail, cropped from the photo their best face was found in."""
         return self.http.url(f"/api/v1/people/thumbnail/{face_id}")
+
+
+class Pairing(_Resource):
+    """Handing a device an account without making anybody type a hostname.
+
+    The two halves of this run in different places and are meant to. A browser that is
+    already signed in calls :meth:`create` and renders the ticket as a QR code; a phone
+    that knows nothing at all reads the code out of it and calls :meth:`claim`. Between
+    them the device learns where the server is and gets an authorization code for it, in
+    one gesture.
+
+    What :meth:`claim` returns is an ordinary OAuth code bound to a PKCE challenge the
+    device generated, so a photographed QR code is not on its own enough to reach a
+    library.
+    """
+
+    async def create(self) -> PairingTicket:
+        """Makes a ticket. Needs a browser session, not a bearer token.
+
+        A paired device that could mint tickets would be a device that could pair others.
+        The code is legible only in this response.
+        """
+        return PairingTicket.model_validate(await self.http.request("POST", "/api/v1/pairing"))
+
+    async def status(self, ticket_id: str) -> PairingStatus:
+        """Whether a device has taken the ticket yet, and what it called itself."""
+        return PairingStatus.model_validate(
+            await self.http.request("GET", f"/api/v1/pairing/{ticket_id}")
+        )
+
+    async def claim(self, request: PairingClaimRequest) -> PairingClaim:
+        """Spends a ticket. Called by the device, not by the browser that made it."""
+        return PairingClaim.model_validate(
+            await self.http.request(
+                "POST",
+                "/api/v1/pairing/claim",
+                json=request.model_dump(by_alias=True, exclude_none=True),
+            )
+        )
 
 
 class Vault(_Resource):

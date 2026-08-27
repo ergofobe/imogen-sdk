@@ -551,6 +551,103 @@ public struct AuthorizationServerMetadata: Codable, Hashable, Sendable {
     }
 }
 
+// MARK: - Pairing
+
+/// A ticket a signed-in browser makes so a device does not have to be told where the
+/// server is. See ``Pairing``.
+public struct PairingTicket: Codable, Hashable, Sendable, Identifiable {
+    public var id: String
+    /// The one-time secret. Legible only in the response that created the ticket.
+    public var code: String
+    public var serverUrl: String
+    /// Server and secret in one string — this is what goes into the QR code.
+    public var uri: String
+    public var expiresAt: String
+}
+
+public struct PairingStatus: Codable, Hashable, Sendable, Identifiable {
+    public var id: String
+    public var expiresAt: String
+    /// `nil` until a device takes the ticket.
+    public var claimedAt: String?
+    public var deviceName: String?
+}
+
+public struct PairingClaimRequest: Codable, Hashable, Sendable {
+    public var code: String
+    /// The client the device registered for itself through RFC 7591.
+    public var clientId: String
+    public var redirectUri: String
+    public var codeChallenge: String
+    public var codeChallengeMethod: String
+    /// Space-separated. Omit to take everything a paired device is allowed.
+    public var scope: String?
+    /// Shown to whoever made the ticket, and in the connected-applications list.
+    public var deviceName: String?
+
+    public init(
+        code: String,
+        clientId: String,
+        redirectUri: String,
+        codeChallenge: String,
+        codeChallengeMethod: String = "S256",
+        scope: String? = nil,
+        deviceName: String? = nil
+    ) {
+        self.code = code
+        self.clientId = clientId
+        self.redirectUri = redirectUri
+        self.codeChallenge = codeChallenge
+        self.codeChallengeMethod = codeChallengeMethod
+        self.scope = scope
+        self.deviceName = deviceName
+    }
+}
+
+/// An ordinary authorization code. Exchange it at the token endpoint with the verifier
+/// that produced the challenge; on its own it grants nothing.
+public struct PairingClaim: Codable, Hashable, Sendable {
+    public var code: String
+    public var redirectUri: String
+    public var scope: String
+}
+
+/// The scheme an application registers so `imogen://pair?…` opens it.
+public let pairingURIScheme = "imogen"
+
+/// What a device reads out of a QR code: where to go, and the code to spend there.
+public struct PairingInvitation: Hashable, Sendable {
+    public var serverURL: String
+    public var code: String
+
+    /// Reads a scanned string, whether it arrived as `imogen://pair?…` or as an ordinary
+    /// `https://…/pair?…` link somebody tapped in a browser. `nil` for anything else,
+    /// because a camera pointed at the world reads a great many things that are not this.
+    public init?(scanned: String) {
+        guard let components = URLComponents(string: scanned.trimmingCharacters(in: .whitespacesAndNewlines))
+        else { return nil }
+        let params = Dictionary(
+            (components.queryItems ?? []).map { ($0.name, $0.value ?? "") },
+            uniquingKeysWith: { first, _ in first }
+        )
+        guard let code = params["code"], !code.isEmpty else { return nil }
+
+        if let server = params["server"], !server.isEmpty {
+            self.serverURL = String(server.reversed().drop(while: { $0 == "/" }).reversed())
+            self.code = code
+            return
+        }
+
+        // An https link carries the server in the link itself: it came from that server.
+        guard let scheme = components.scheme, scheme == "http" || scheme == "https",
+            let host = components.host
+        else { return nil }
+        let port = components.port.map { ":\($0)" } ?? ""
+        self.serverURL = "\(scheme)://\(host)\(port)"
+        self.code = code
+    }
+}
+
 // MARK: - People
 
 /// One cluster of faces the library believes belong to the same person.

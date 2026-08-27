@@ -3,6 +3,7 @@ import { Albums } from './albums.ts'
 import { Assets } from './assets.ts'
 import { Auth } from './auth.ts'
 import { type ClientOptions, HttpClient } from './http.ts'
+import { Pairing } from './pairing.ts'
 import { People } from './people.ts'
 import { Vault } from './vault.ts'
 
@@ -24,6 +25,7 @@ export class ImogenClient {
   readonly auth: Auth
   readonly vault: Vault
   readonly people: People
+  readonly pairing: Pairing
 
   constructor(options: ClientOptions) {
     this.http = new HttpClient(options)
@@ -33,6 +35,7 @@ export class ImogenClient {
     this.auth = new Auth(this.http)
     this.vault = new Vault(this.http)
     this.people = new People(this.http)
+    this.pairing = new Pairing(this.http)
   }
 
   get baseUrl(): string {

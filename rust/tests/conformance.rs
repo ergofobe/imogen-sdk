@@ -257,6 +257,20 @@ async fn invoke(client: &ImogenClient, key: &str, big_file: &Path) -> bool {
         "admin.shares" => drop(client.admin.shares().await),
         "admin.revokeShare" => drop(client.admin.revoke_share("SHARE").await),
 
+        "pairing.create" => drop(client.pairing.create().await),
+        "pairing.status" => drop(client.pairing.status("TICKET").await),
+        "pairing.claim" => drop(
+            client
+                .pairing
+                .claim(&PairingClaimRequest::new(
+                    "imog_pair_x",
+                    "CLIENT",
+                    "imogen://oauth",
+                    "x".repeat(43),
+                ))
+                .await,
+        ),
+
         "oauth.discover" => drop(
             client
                 .http
@@ -284,6 +298,7 @@ fn concrete(path: &str) -> String {
         .replace("{clientId}", "CLIENT")
         .replace("{sessionId}", "SESSION")
         .replace("{shareId}", "SHARE")
+        .replace("{ticketId}", "TICKET")
         .replace("{variant}", "thumbnail")
 }
 
@@ -404,6 +419,10 @@ fn models_decode_as_the_contract_says() {
     check_model::<StorageReport>("storageReport");
     check_model::<ServerSettings>("serverSettings");
     check_model::<TokenResponse>("tokenResponse");
+    check_model::<PairingTicket>("pairingTicket");
+    check_model::<PairingStatus>("pairingStatusUnclaimed");
+    check_model::<PairingStatus>("pairingStatusClaimed");
+    check_model::<PairingClaim>("pairingClaim");
 }
 
 // --- errors ---

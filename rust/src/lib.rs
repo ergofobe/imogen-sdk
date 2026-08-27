@@ -29,6 +29,7 @@ mod error;
 mod http;
 pub mod models;
 mod oauth;
+mod pairing;
 mod people;
 mod vault;
 
@@ -49,7 +50,8 @@ pub use crate::http::{
     DEFAULT_CONNECT_TIMEOUT,
 };
 pub use crate::models::*;
-pub use crate::oauth::{OAuthClient, PendingAuthorization, StoredTokens};
+pub use crate::oauth::{OAuthClient, PairedDevice, PendingAuthorization, StoredTokens};
+pub use crate::pairing::Pairing;
 pub use crate::people::People;
 pub use crate::vault::Vault;
 
@@ -64,6 +66,7 @@ pub struct ImogenClient {
     pub auth: Auth,
     pub vault: Vault,
     pub people: People,
+    pub pairing: Pairing,
 }
 
 impl ImogenClient {
@@ -76,6 +79,7 @@ impl ImogenClient {
             auth: Auth::new(http.clone()),
             vault: Vault::new(http.clone()),
             people: People::new(http.clone()),
+            pairing: Pairing::new(http.clone()),
             http,
         }
     }

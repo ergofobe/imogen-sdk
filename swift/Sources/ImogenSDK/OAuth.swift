@@ -35,6 +35,14 @@ public struct OAuthError: Error, LocalizedError, Sendable {
     public var errorDescription: String? { message }
 }
 
+/// What comes back from pairing: an account, and the client it belongs to.
+public struct PairedDevice: Hashable, Sendable {
+    /// Registered for this device alone. Needed again to refresh.
+    public let clientId: String
+    public let tokens: StoredTokens
+    public let scope: String
+}
+
 /// The OAuth 2.1 client a native application needs: discover the server, register itself,
 /// run authorization code with PKCE, and refresh. No client secret is involved, because a
 /// secret shipped inside a mobile app is not a secret.
@@ -176,6 +184,71 @@ public actor OAuthClient {
         ])
     }
 
+    /// The whole pairing sequence, from a scanned QR code to tokens.
+    ///
+    /// Registers a client for this device, spends the pairing code on an authorization
+    /// code, and exchanges it. The verifier never leaves this process, so the pairing code
+    /// on its own — photographed off somebody's screen, say — cannot be turned into a
+    /// session.
+    ///
+    /// ```swift
+    /// guard let invitation = PairingInvitation(scanned: scanned) else { return }
+    /// let oauth = OAuthClient(baseURL: invitation.serverURL)
+    /// let paired = try await oauth.pair(
+    ///     pairingCode: invitation.code,
+    ///     clientName: "imogen for iOS",
+    ///     redirectURI: "imogen://oauth",
+    ///     deviceName: UIDevice.current.name
+    /// )
+    /// ```
+    public func pair(
+        pairingCode: String,
+        clientName: String,
+        redirectURI: String,
+        deviceName: String? = nil,
+        scopes: [String] = defaultScopes
+    ) async throws -> PairedDevice {
+        let registered = try await register(
+            name: clientName, redirectURIs: [redirectURI], scopes: scopes)
+        let verifier = randomString(byteLength: 32)
+
+        guard let url = URL(string: "\(baseURL)/api/v1/pairing/claim") else {
+            throw OAuthError(message: "Could not build the pairing URL")
+        }
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.httpBody = try JSONEncoder().encode(
+            PairingClaimRequest(
+                code: pairingCode,
+                clientId: registered.clientId,
+                redirectUri: redirectURI,
+                codeChallenge: s256(verifier),
+                scope: scopes.joined(separator: " "),
+                deviceName: deviceName
+            )
+        )
+
+        let (data, response) = try await session.data(for: request)
+        guard let http = response as? HTTPURLResponse, (200..<300).contains(http.statusCode) else {
+            // The imogen error envelope, not the OAuth one: this is an API route.
+            let described =
+                (try? JSONDecoder().decode(ApiErrorEnvelope.self, from: data))?.error.message
+                ?? "That pairing code could not be used"
+            throw OAuthError(message: described)
+        }
+
+        let claim = try JSONDecoder().decode(PairingClaim.self, from: data)
+        let tokens = try await exchange([
+            "grant_type": "authorization_code",
+            "client_id": registered.clientId,
+            "code": claim.code,
+            "code_verifier": verifier,
+            "redirect_uri": claim.redirectUri,
+        ])
+        return PairedDevice(clientId: registered.clientId, tokens: tokens, scope: claim.scope)
+    }
+
     public func refresh(clientId: String, refreshToken: String) async throws -> StoredTokens {
         try await exchange([
             "grant_type": "refresh_token",
@@ -230,13 +303,13 @@ private func base64URL(_ bytes: Data) -> String {
         .replacingOccurrences(of: "=", with: "")
 }
 
-private func randomString(byteLength: Int) -> String {
+func randomString(byteLength: Int) -> String {
     var bytes = [UInt8](repeating: 0, count: byteLength)
     for index in bytes.indices { bytes[index] = UInt8.random(in: 0...255) }
     return base64URL(Data(bytes))
 }
 
-private func s256(_ verifier: String) -> String {
+func s256(_ verifier: String) -> String {
     base64URL(Data(SHA256.hash(data: Data(verifier.utf8))))
 }
 

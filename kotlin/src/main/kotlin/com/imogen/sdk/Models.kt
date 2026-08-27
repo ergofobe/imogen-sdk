@@ -2,6 +2,7 @@
 
 package com.imogen.sdk
 
+import io.ktor.http.Url
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
@@ -455,6 +456,78 @@ data class AuthorizationServerMetadata(
     @SerialName("code_challenge_methods_supported")
     val codeChallengeMethodsSupported: List<String> = emptyList(),
 )
+
+// --- pairing ---
+
+/**
+ * A ticket a signed-in browser makes so a device does not have to be told where the
+ * server is. See [Pairing].
+ */
+@Serializable
+data class PairingTicket(
+    val id: String,
+    /** The one-time secret. Legible only in the response that created the ticket. */
+    val code: String,
+    val serverUrl: String,
+    /** Server and secret in one string — this is what goes into the QR code. */
+    val uri: String,
+    val expiresAt: String,
+)
+
+@Serializable
+data class PairingStatus(
+    val id: String,
+    val expiresAt: String,
+    /** Null until a device takes the ticket. */
+    val claimedAt: String? = null,
+    val deviceName: String? = null,
+)
+
+@Serializable
+data class PairingClaimRequest(
+    val code: String,
+    /** The client the device registered for itself through RFC 7591. */
+    val clientId: String,
+    val redirectUri: String,
+    val codeChallenge: String,
+    val codeChallengeMethod: String = "S256",
+    /** Space-separated. Omit to take everything a paired device is allowed. */
+    val scope: String? = null,
+    /** Shown to whoever made the ticket, and in the connected-applications list. */
+    val deviceName: String? = null,
+)
+
+/**
+ * An ordinary authorization code. Exchange it at the token endpoint with the verifier
+ * that produced [PairingClaimRequest.codeChallenge]; on its own it grants nothing.
+ */
+@Serializable
+data class PairingClaim(val code: String, val redirectUri: String, val scope: String)
+
+/** The scheme an application registers so `imogen://pair?…` opens it. */
+const val PAIRING_URI_SCHEME: String = "imogen"
+
+/** What a device reads out of a QR code: where to go, and the code to spend there. */
+data class PairingInvitation(val serverUrl: String, val code: String)
+
+/**
+ * Reads a scanned string, whether it arrived as `imogen://pair?…` or as an ordinary
+ * `https://…/pair?…` link somebody tapped in a browser. Returns null for anything else,
+ * because a camera pointed at the world reads a great many things that are not this.
+ */
+fun parsePairingUri(input: String): PairingInvitation? {
+    val url = runCatching { Url(input.trim()) }.getOrNull() ?: return null
+    val code = url.parameters["code"]?.takeIf { it.isNotBlank() } ?: return null
+
+    url.parameters["server"]?.takeIf { it.isNotBlank() }?.let { server ->
+        return PairingInvitation(server.trimEnd('/'), code)
+    }
+
+    // An https link carries the server in the link itself: it came from that server.
+    if (url.protocol.name != "http" && url.protocol.name != "https") return null
+    val port = if (url.port == url.protocol.defaultPort) "" else ":${url.port}"
+    return PairingInvitation("${url.protocol.name}://${url.host}$port", code)
+}
 
 // --- people ---
 

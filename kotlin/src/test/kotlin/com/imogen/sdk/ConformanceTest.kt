@@ -174,6 +174,20 @@ class ConformanceTest {
             "admin.shares" -> ({ imogen.admin.shares(); Unit })
             "admin.revokeShare" -> ({ imogen.admin.revokeShare("SHARE") })
 
+            "pairing.create" -> ({ imogen.pairing.create(); Unit })
+            "pairing.status" -> ({ imogen.pairing.status("TICKET"); Unit })
+            "pairing.claim" -> ({
+                imogen.pairing.claim(
+                    PairingClaimRequest(
+                        code = "imog_pair_x",
+                        clientId = "CLIENT",
+                        redirectUri = "imogen://oauth",
+                        codeChallenge = "x".repeat(43),
+                    )
+                )
+                Unit
+            })
+
             "oauth.discover" ->
                 ({ imogen.http.send("GET", "/.well-known/oauth-authorization-server"); Unit })
 
@@ -285,6 +299,10 @@ class ConformanceTest {
         check<StorageReport>("storageReport")
         check<ServerSettings>("serverSettings")
         check<TokenResponse>("tokenResponse")
+        check<PairingTicket>("pairingTicket")
+        check<PairingStatus>("pairingStatusUnclaimed")
+        check<PairingStatus>("pairingStatusClaimed")
+        check<PairingClaim>("pairingClaim")
     }
 
     // --- errors ---
@@ -470,6 +488,7 @@ class ConformanceTest {
             "{clientId}" to "CLIENT",
             "{sessionId}" to "SESSION",
             "{shareId}" to "SHARE",
+            "{ticketId}" to "TICKET",
             "{variant}" to "thumbnail",
         )
     }
