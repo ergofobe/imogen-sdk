@@ -100,6 +100,8 @@ class ConformanceTest {
             "assets.trash" -> ({ imogen.assets.trash(ids); Unit })
             "assets.restore" -> ({ imogen.assets.restore(ids); Unit })
             "assets.timeline" -> ({ imogen.assets.timeline(); Unit })
+            "assets.timelineBucket" ->
+                ({ imogen.assets.timelineBucket(TimelineBucketQuery(period = "2024-06")); Unit })
             "assets.stats" -> ({ imogen.assets.stats(); Unit })
             "assets.variant" -> ({ imogen.assets.bytes("ASSET", AssetVariant.THUMBNAIL); Unit })
             "assets.download" ->

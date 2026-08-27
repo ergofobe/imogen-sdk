@@ -219,10 +219,126 @@ data class AssetQuery(
 
 /** A day bucket in the timeline, used to size the scroller before assets load. */
 @Serializable
-data class TimelineBucket(val date: String, val count: Long)
+data class TimelineBucket(
+    val date: String,
+    val count: Long,
+    /**
+     * The newest ready asset in the bucket, for an overview's period card. Null unless
+     * `covers` was asked for, and null for a period whose photographs are all still being
+     * processed — such a period shows a count without a picture rather than vanishing.
+     */
+    val coverAssetId: String? = null,
+)
 
 @Serializable
 data class Timeline(val buckets: List<TimelineBucket> = emptyList())
+
+/**
+ * The filters every listing shares. Extracted so the timeline aggregate, the bucket
+ * endpoint, and a by-query selection cannot drift from what `GET /assets` accepts.
+ */
+@Serializable
+data class AssetFilter(
+    /** Free-text over filename, description, camera, and place. */
+    val q: String? = null,
+    val type: AssetType? = null,
+    val albumId: String? = null,
+    /** Photographs a given person appears in. */
+    val personId: String? = null,
+    val favorite: Boolean? = null,
+    val archived: Boolean? = null,
+    /** When true, returns only trashed assets. Trashed assets are hidden otherwise. */
+    val trashed: Boolean? = null,
+    val takenAfter: String? = null,
+    val takenBefore: String? = null,
+    /** Bounding box filter: `minLat,minLon,maxLat,maxLon`. */
+    val bbox: String? = null,
+) {
+    fun toParameters(): List<Pair<String, String>> = buildList {
+        q?.let { add("q" to it) }
+        type?.let { add("type" to if (it == AssetType.IMAGE) "image" else "video") }
+        albumId?.let { add("albumId" to it) }
+        personId?.let { add("personId" to it) }
+        favorite?.let { add("favorite" to it.toString()) }
+        archived?.let { add("archived" to it.toString()) }
+        trashed?.let { add("trashed" to it.toString()) }
+        takenAfter?.let { add("takenAfter" to it) }
+        takenBefore?.let { add("takenBefore" to it) }
+        bbox?.let { add("bbox" to it) }
+    }
+}
+
+data class TimelineQuery(
+    val filter: AssetFilter = AssetFilter(),
+    val covers: Boolean? = null,
+) {
+    fun toParameters(): List<Pair<String, String>> = buildList {
+        addAll(filter.toParameters())
+        covers?.let { add("covers" to it.toString()) }
+    }
+}
+
+/**
+ * Everything a grid tile draws, and nothing else. An [Asset] carries checksum, exif,
+ * filenames, and both captured-at corrections — none of which a tile reads. Over a heavy
+ * month that is the difference between one round trip and several.
+ */
+@Serializable
+data class TimelineTile(
+    val id: String,
+    val capturedAt: String,
+    val width: Int? = null,
+    val height: Int? = null,
+    val type: AssetType,
+    val status: AssetStatus,
+    val favorite: Boolean,
+    val duration: Double? = null,
+    val placeholderColor: String? = null,
+    val livePhotoVideoId: String? = null,
+)
+
+@Serializable
+data class TilePage(
+    val items: List<TimelineTile> = emptyList(),
+    val nextCursor: String? = null,
+    /** Total matching rows, when cheap to compute. Null means "not counted". */
+    val total: Long? = null,
+)
+
+/**
+ * `period` is `YYYY-MM` or `YYYY-MM-DD`. A bare year is refused server-side: it would be
+ * a whole-library scan asked for by accident.
+ *
+ * `limit` defaults server-side to 5000, so it stays nullable here rather than hardcoding
+ * that default client-side — a caller who omits it gets whatever the server currently
+ * applies, not whatever number this client shipped with.
+ */
+data class TimelineBucketQuery(
+    val period: String,
+    val filter: AssetFilter = AssetFilter(),
+    val cursor: String? = null,
+    val limit: Int? = null,
+) {
+    fun toParameters(): List<Pair<String, String>> = buildList {
+        add("period" to period)
+        addAll(filter.toParameters())
+        cursor?.let { add("cursor" to it) }
+        limit?.let { add("limit" to it.toString()) }
+    }
+}
+
+/**
+ * What a bulk mutation acts on. Either an explicit list, or the filter the user was
+ * looking at minus whatever they unticked — so "select all" in a hundred-thousand-photo
+ * library is a filter, not a hundred thousand uuids in a request body.
+ */
+@Serializable
+data class AssetSelection(
+    val assetIds: List<String>? = null,
+    val query: AssetFilter? = null,
+    /** Capped deliberately: past this, an interface should not be offering a selection. */
+    val except: List<String>? = null,
+)
 
 @Serializable
 data class LibraryStats(

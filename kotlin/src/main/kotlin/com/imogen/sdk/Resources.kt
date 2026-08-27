@@ -101,25 +101,41 @@ class Assets internal constructor(private val http: HttpClient) {
         http.requestText("DELETE", "/api/v1/assets/$assetId/share")
     }
 
-    suspend fun trash(assetIds: List<String>): Long {
+    /** The id list is the older, shorter way of saying the same thing. */
+    suspend fun trash(assetIds: List<String>): Long = trash(AssetSelection(assetIds = assetIds))
+
+    suspend fun trash(selection: AssetSelection): Long {
         val result: AffectedCount = http.request(
             "POST",
             "/api/v1/assets/trash",
-            RequestOptions(body = jsonBody("assetIds" to assetIds), headers = jsonHeaders),
+            RequestOptions(body = wireJson.encodeToString(selection), headers = jsonHeaders),
         )
         return result.count
     }
 
-    suspend fun restore(assetIds: List<String>): Long {
+    suspend fun restore(assetIds: List<String>): Long = restore(AssetSelection(assetIds = assetIds))
+
+    suspend fun restore(selection: AssetSelection): Long {
         val result: AffectedCount = http.request(
             "POST",
             "/api/v1/assets/restore",
-            RequestOptions(body = jsonBody("assetIds" to assetIds), headers = jsonHeaders),
+            RequestOptions(body = wireJson.encodeToString(selection), headers = jsonHeaders),
         )
         return result.count
     }
 
-    suspend fun timeline(): Timeline = http.request("GET", "/api/v1/assets/timeline")
+    suspend fun timeline(query: TimelineQuery = TimelineQuery()): Timeline =
+        http.request("GET", "/api/v1/assets/timeline", RequestOptions(query = query.toParameters()))
+
+    /**
+     * Every tile in one period, in one round trip, for a grid that lays itself out.
+     * `limit` defaults server-side, so only `period` is required here.
+     */
+    suspend fun timelineBucket(query: TimelineBucketQuery): TilePage = http.request(
+        "GET",
+        "/api/v1/assets/timeline/bucket",
+        RequestOptions(query = query.toParameters()),
+    )
 
     suspend fun stats(): LibraryStats = http.request("GET", "/api/v1/assets/stats")
 
@@ -280,17 +296,23 @@ class Albums internal constructor(private val http: HttpClient) {
         http.requestText("DELETE", "/api/v1/albums/$albumId")
     }
 
-    suspend fun addAssets(albumId: String, assetIds: List<String>): AlbumAssetsResult = http.request(
+    suspend fun addAssets(albumId: String, assetIds: List<String>): AlbumAssetsResult =
+        addAssets(albumId, AssetSelection(assetIds = assetIds))
+
+    suspend fun addAssets(albumId: String, selection: AssetSelection): AlbumAssetsResult = http.request(
         "POST",
         "/api/v1/albums/$albumId/assets",
-        RequestOptions(body = jsonBody("assetIds" to assetIds), headers = jsonHeaders),
+        RequestOptions(body = wireJson.encodeToString(selection), headers = jsonHeaders),
     )
 
-    suspend fun removeAssets(albumId: String, assetIds: List<String>): Long {
+    suspend fun removeAssets(albumId: String, assetIds: List<String>): Long =
+        removeAssets(albumId, AssetSelection(assetIds = assetIds))
+
+    suspend fun removeAssets(albumId: String, selection: AssetSelection): Long {
         val result: RemovedCount = http.request(
             "DELETE",
             "/api/v1/albums/$albumId/assets",
-            RequestOptions(body = jsonBody("assetIds" to assetIds), headers = jsonHeaders),
+            RequestOptions(body = wireJson.encodeToString(selection), headers = jsonHeaders),
         )
         return result.removed
     }
@@ -425,20 +447,24 @@ class Vault internal constructor(private val http: HttpClient) {
         return page.items
     }
 
-    suspend fun moveIn(assetIds: List<String>): Long {
+    suspend fun moveIn(assetIds: List<String>): Long = moveIn(AssetSelection(assetIds = assetIds))
+
+    suspend fun moveIn(selection: AssetSelection): Long {
         val result: MovedCount = http.request(
             "POST",
             "/api/v1/vault/assets",
-            RequestOptions(body = jsonBody("assetIds" to assetIds), headers = jsonHeaders),
+            RequestOptions(body = wireJson.encodeToString(selection), headers = jsonHeaders),
         )
         return result.moved
     }
 
-    suspend fun moveOut(assetIds: List<String>): Long {
+    suspend fun moveOut(assetIds: List<String>): Long = moveOut(AssetSelection(assetIds = assetIds))
+
+    suspend fun moveOut(selection: AssetSelection): Long {
         val result: MovedCount = http.request(
             "DELETE",
             "/api/v1/vault/assets",
-            RequestOptions(body = jsonBody("assetIds" to assetIds), headers = jsonHeaders),
+            RequestOptions(body = wireJson.encodeToString(selection), headers = jsonHeaders),
         )
         return result.moved
     }
