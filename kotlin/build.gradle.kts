@@ -26,7 +26,10 @@ dependencies {
 }
 
 kotlin {
-    jvmToolchain(21)
+    // 17, not the newest available: the Android build tools accept Java 17 class files
+    // without ceremony, and this library is meant to be the one an Android application
+    // depends on. Nothing here needs a language feature newer than that.
+    jvmToolchain(17)
 }
 
 tasks.test {
