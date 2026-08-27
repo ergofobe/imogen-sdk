@@ -122,6 +122,9 @@ enum Conformance {
             case "vault.unlock": try await client.vault.unlock("open sesame")
             case "vault.lock": try await client.vault.lock()
             case "vault.list": _ = try await client.vault.list()
+            case "vault.timeline": _ = try await client.vault.timeline()
+            case "vault.timelineBucket":
+                _ = try await client.vault.timelineBucket(period: "2024-06")
             case "vault.moveIn": _ = try await client.vault.moveIn(ids)
             case "vault.moveOut": _ = try await client.vault.moveOut(ids)
 
@@ -382,6 +385,35 @@ enum Conformance {
             expectEqual(error.status, 404)
         }
         expectEqual(StubState.shared.callCount, 1)
+    }
+
+    /// The listing is capped, and the cap has to be visible. A return type carrying only
+    /// the rows cannot say "there are four thousand of these and you have two hundred",
+    /// which is the difference between a sample and the whole vault.
+    static func testTheVaultListingSaysHowBigTheVaultIs() async throws {
+        let session = stubbedSession { _, _ in
+            .json(#"{"items":[],"nextCursor":null,"total":4096}"#)
+        }
+
+        let client = ImogenClient(options: ClientOptions(baseURL: Conformance.base, session: session))
+        let page = try await client.vault.list()
+
+        expectEqual(page.items.count, 0)
+        expectEqual(page.total, 4096)
+    }
+
+    /// `period`, `cursor` and `limit` and nothing else: the vault spine takes no filter,
+    /// so there is nothing a caller can send that widens what comes back.
+    static func testTheVaultSpineAsksForOnePeriodAndCarriesNoFilter() async throws {
+        let session = stubbedSession { _, _ in
+            .json(#"{"items":[],"nextCursor":null,"total":0}"#)
+        }
+
+        let client = ImogenClient(options: ClientOptions(baseURL: Conformance.base, session: session))
+        _ = try await client.vault.timelineBucket(period: "2011-08")
+
+        expectEqual(StubState.shared.calls.last?.path, "/api/v1/vault/timeline/bucket")
+        expectEqual(StubState.shared.calls.last?.query, "period=2011-08")
     }
 
     static func testSendsTheBearerToken() async throws {

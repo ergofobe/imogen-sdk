@@ -438,14 +438,59 @@ class Vault internal constructor(private val http: HttpClient) {
         http.requestText("POST", "/api/v1/vault/lock")
     }
 
-    suspend fun list(limit: Int = 200): List<Asset> {
-        val page: Items<Asset> = http.request(
-            "GET",
-            "/api/v1/vault/assets",
-            RequestOptions(query = listOf("limit" to limit.toString())),
-        )
-        return page.items
-    }
+    /**
+     * A sample of the vault, newest first, and how big the vault actually is.
+     *
+     * The ordinary [AssetPage] rather than a bare list, because the server answers
+     * `pageOf(Asset)` here as it does everywhere else. This endpoint is capped, and the cap
+     * used to be invisible: two hundred photographs with no cursor and no count reads as
+     * "that is all of them", which for a larger vault was simply untrue. `nextCursor` is
+     * always null -- this endpoint does not page -- and `total` is what makes the cap
+     * visible instead of silent. A caller that wants the whole vault wants [timeline] and
+     * [timelineBucket].
+     */
+    suspend fun list(limit: Int = 200): AssetPage = http.request(
+        "GET",
+        "/api/v1/vault/assets",
+        RequestOptions(query = listOf("limit" to limit.toString())),
+    )
+
+    /**
+     * One row per day in the vault, for sizing the grid before any tile arrives.
+     *
+     * The vault has a spine of its own because it cannot have a filter: [AssetFilter]
+     * deliberately cannot express "inside the vault", so the scoping is done server-side
+     * behind the unlock rather than by anything the caller sends. `covers` is the only
+     * parameter the route reads, so it is the only one this takes.
+     */
+    suspend fun timeline(covers: Boolean? = null): Timeline = http.request(
+        "GET",
+        "/api/v1/vault/timeline",
+        RequestOptions(query = buildList { covers?.let { add("covers" to it.toString()) } }),
+    )
+
+    /**
+     * Every tile in one period of the vault, in one round trip.
+     *
+     * `period`, `cursor` and `limit` and nothing else: a filter this accepted would be a
+     * filter that could widen what the vault hands back. `limit` left null takes the
+     * server's default rather than a number this client shipped with.
+     */
+    suspend fun timelineBucket(
+        period: String,
+        cursor: String? = null,
+        limit: Int? = null,
+    ): TilePage = http.request(
+        "GET",
+        "/api/v1/vault/timeline/bucket",
+        RequestOptions(
+            query = buildList {
+                add("period" to period)
+                cursor?.let { add("cursor" to it) }
+                limit?.let { add("limit" to it.toString()) }
+            },
+        ),
+    )
 
     suspend fun moveIn(assetIds: List<String>): Long = moveIn(AssetSelection(assetIds = assetIds))
 

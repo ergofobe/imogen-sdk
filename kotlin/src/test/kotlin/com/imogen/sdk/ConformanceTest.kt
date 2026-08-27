@@ -137,6 +137,8 @@ class ConformanceTest {
             "vault.unlock" -> ({ imogen.vault.unlock("open sesame") })
             "vault.lock" -> ({ imogen.vault.lock() })
             "vault.list" -> ({ imogen.vault.list(); Unit })
+            "vault.timeline" -> ({ imogen.vault.timeline(); Unit })
+            "vault.timelineBucket" -> ({ imogen.vault.timelineBucket("2024-06"); Unit })
             "vault.moveIn" -> ({ imogen.vault.moveIn(ids); Unit })
             "vault.moveOut" -> ({ imogen.vault.moveOut(ids); Unit })
 

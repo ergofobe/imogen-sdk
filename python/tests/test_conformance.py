@@ -168,6 +168,8 @@ async def invoke(client: ImogenClient, key: str, big_file: Path, small_file: Pat
         "vault.unlock": lambda: client.vault.unlock("open sesame"),
         "vault.lock": lambda: client.vault.lock(),
         "vault.list": lambda: client.vault.list(),
+        "vault.timeline": lambda: client.vault.timeline(),
+        "vault.timelineBucket": lambda: client.vault.timeline_bucket("2024-06"),
         "vault.moveIn": lambda: client.vault.move_in(ids),
         "vault.moveOut": lambda: client.vault.move_out(ids),
         "auth.config": lambda: client.auth.config(),
@@ -454,6 +456,36 @@ ASSET_JSON = {
     "livePhotoVideoId": None,
     "deviceAssetId": None,
 }
+
+
+async def test_the_vault_listing_says_how_big_the_vault_is(serve: Any) -> None:
+    """The listing is capped, and the cap has to be visible.
+
+    A return type carrying only the rows cannot say "there are four thousand of these and
+    you have two hundred", which is the difference between a sample and the whole vault.
+    """
+    payload = json.dumps({"items": [], "nextCursor": None, "total": 4096})
+    stub = serve(lambda _request, _index: Reply(body=payload))
+
+    async with ImogenClient(stub.base_url) as client:
+        page = await client.vault.list()
+
+    assert page.items == []
+    assert page.total == 4096
+
+
+async def test_the_vault_spine_asks_for_one_period_and_carries_no_filter(serve: Any) -> None:
+    """``period``, ``cursor`` and ``limit`` and nothing else: the vault spine takes no
+    filter, so there is nothing a caller can send that widens what comes back.
+    """
+    payload = json.dumps({"items": [], "nextCursor": None, "total": 0})
+    stub = serve(lambda _request, _index: Reply(body=payload))
+
+    async with ImogenClient(stub.base_url) as client:
+        await client.vault.timeline_bucket("2011-08")
+
+    assert stub.calls[-1].path == "/api/v1/vault/timeline/bucket"
+    assert stub.calls[-1].query == "period=2011-08"
 
 
 async def test_iterates_every_page_exactly_once(serve: Any) -> None:

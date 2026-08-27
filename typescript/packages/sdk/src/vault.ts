@@ -1,10 +1,5 @@
-import type {
-  Asset,
-  AssetSelection,
-  TimelineBucket,
-  TimelineBucketQuery,
-} from '@imogen/shared'
-import { selectionBody, type TilePage } from './assets.ts'
+import type { AssetSelection, TimelineBucket, TimelineBucketQuery } from '@imogen/shared'
+import { type AssetPage, selectionBody, type TilePage } from './assets.ts'
 import type { HttpClient } from './http.ts'
 
 export type VaultStatus = {
@@ -51,11 +46,13 @@ export class Vault {
    * that wants the whole thing wants `timeline` and `timelineBucket`; this is for anything
    * that wants a handful of recent rows without laying out a grid, and `total` is what lets
    * it know that is what it got.
+   *
+   * The ordinary `AssetPage` rather than a shape of its own, because the server answers
+   * `pageOf(Asset)` here like everywhere else. `nextCursor` is always null: this endpoint
+   * does not page, which is exactly what `total` beside a null cursor is there to say.
    */
-  list(limit = 200): Promise<{ items: Asset[]; total: number }> {
-    return this.http.request<{ items: Asset[]; total: number }>('GET', '/api/v1/vault/assets', {
-      query: { limit },
-    })
+  list(limit = 200): Promise<AssetPage> {
+    return this.http.request<AssetPage>('GET', '/api/v1/vault/assets', { query: { limit } })
   }
 
   /**
@@ -69,6 +66,11 @@ export class Vault {
     return this.http.request('GET', '/api/v1/vault/timeline', { query })
   }
 
+  /**
+   * Every tile in one period of the vault. `period`, `cursor` and `limit` only — the
+   * route parses nothing else, and a filter it accepted would be a filter that could
+   * widen what the vault hands back.
+   */
   timelineBucket(
     query: Pick<TimelineBucketQuery, 'period'> & { cursor?: string; limit?: number },
   ): Promise<TilePage> {

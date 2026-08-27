@@ -172,6 +172,8 @@ async fn invoke(client: &ImogenClient, key: &str, big_file: &Path) -> bool {
         "vault.unlock" => drop(client.vault.unlock("open sesame").await),
         "vault.lock" => drop(client.vault.lock().await),
         "vault.list" => drop(client.vault.list(200).await),
+        "vault.timeline" => drop(client.vault.timeline(None).await),
+        "vault.timelineBucket" => drop(client.vault.timeline_bucket("2024-06", None, None).await),
         "vault.moveIn" => drop(client.vault.move_in(&AssetSelection::ids(&ids)).await),
         "vault.moveOut" => drop(client.vault.move_out(&AssetSelection::ids(&ids)).await),
 
@@ -604,6 +606,40 @@ async fn builds_image_urls_without_a_request() {
         client.assets.download_url("A1"),
         "https://photos.example.test/api/v1/assets/A1/download"
     );
+}
+
+/// The listing is capped, and the cap has to be visible. A return type carrying only the
+/// rows cannot say "there are four thousand of these and you have two hundred", which is
+/// the difference between a sample and the whole vault.
+#[tokio::test]
+async fn the_vault_listing_says_how_big_the_vault_is() {
+    let server =
+        stub::start(|_, _| Reply::json(r#"{"items":[],"nextCursor":null,"total":4096}"#)).await;
+
+    let client = ImogenClient::new(ClientOptions::new(&server.base_url));
+    let page = client.vault.list(200).await.unwrap();
+
+    assert!(page.items.is_empty());
+    assert_eq!(page.total, Some(4096));
+}
+
+/// `period`, `cursor` and `limit` and nothing else: the vault spine takes no filter, so
+/// there is nothing a caller can send that widens what comes back.
+#[tokio::test]
+async fn the_vault_spine_asks_for_one_period_and_carries_no_filter() {
+    let server =
+        stub::start(|_, _| Reply::json(r#"{"items":[],"nextCursor":null,"total":0}"#)).await;
+
+    let client = ImogenClient::new(ClientOptions::new(&server.base_url));
+    client
+        .vault
+        .timeline_bucket("2011-08", None, None)
+        .await
+        .unwrap();
+
+    let call = server.calls().pop().unwrap();
+    assert_eq!(call.path, "/api/v1/vault/timeline/bucket");
+    assert_eq!(call.query, "period=2011-08");
 }
 
 #[tokio::test]

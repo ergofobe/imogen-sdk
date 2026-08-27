@@ -488,12 +488,48 @@ public struct Vault: Sendable {
         try await http.requestVoid("POST", "/api/v1/vault/lock")
     }
 
-    public func list(limit: Int = 200) async throws -> [Asset] {
-        let page: Items<Asset> = try await http.request(
+    /// A sample of the vault, newest first, and how big the vault actually is.
+    ///
+    /// The ordinary `AssetPage` rather than a bare array, because the server answers
+    /// `pageOf(Asset)` here as it does everywhere else. This endpoint is capped, and the
+    /// cap used to be invisible: two hundred photographs with no cursor and no count reads
+    /// as "that is all of them", which for a larger vault was simply untrue. `nextCursor`
+    /// is always nil — this endpoint does not page — and `total` is what makes the cap
+    /// visible instead of silent. A caller that wants the whole vault wants `timeline`
+    /// and `timelineBucket`.
+    public func list(limit: Int = 200) async throws -> AssetPage {
+        try await http.request(
             "GET", "/api/v1/vault/assets",
             RequestOptions(query: [URLQueryItem(name: "limit", value: String(limit))])
         )
-        return page.items
+    }
+
+    /// One row per day in the vault, for sizing the grid before any tile arrives.
+    ///
+    /// The vault has a spine of its own because it cannot have a filter: `AssetFilter`
+    /// deliberately cannot express "inside the vault", so the scoping is done server-side
+    /// behind the unlock rather than by anything the caller sends. `covers` is the only
+    /// parameter the route reads, so it is the only one this takes.
+    public func timeline(covers: Bool? = nil) async throws -> Timeline {
+        var items: [URLQueryItem] = []
+        if let covers { items.append(URLQueryItem(name: "covers", value: String(covers))) }
+        return try await http.request(
+            "GET", "/api/v1/vault/timeline", RequestOptions(query: items))
+    }
+
+    /// Every tile in one period of the vault, in one round trip.
+    ///
+    /// `period`, `cursor` and `limit` and nothing else: a filter this accepted would be a
+    /// filter that could widen what the vault hands back. `limit` left nil takes the
+    /// server's default rather than a number this client shipped with.
+    public func timelineBucket(
+        period: String, cursor: String? = nil, limit: Int? = nil
+    ) async throws -> TilePage {
+        var items = [URLQueryItem(name: "period", value: period)]
+        if let cursor { items.append(URLQueryItem(name: "cursor", value: cursor)) }
+        if let limit { items.append(URLQueryItem(name: "limit", value: String(limit))) }
+        return try await http.request(
+            "GET", "/api/v1/vault/timeline/bucket", RequestOptions(query: items))
     }
 
     @discardableResult

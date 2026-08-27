@@ -134,6 +134,8 @@ describe('endpoint table', () => {
     'vault.unlock': (c) => c.vault.unlock('open sesame'),
     'vault.lock': (c) => c.vault.lock(),
     'vault.list': (c) => c.vault.list(),
+    'vault.timeline': (c) => c.vault.timeline(),
+    'vault.timelineBucket': (c) => c.vault.timelineBucket({ period: '2024-06' }),
     'vault.moveIn': (c) => c.vault.moveIn(['ASSET']),
     'vault.moveOut': (c) => c.vault.moveOut(['ASSET']),
 
