@@ -7,6 +7,7 @@ anything about HTTP beyond the path they call.
 from __future__ import annotations
 
 import asyncio
+import json
 import mimetypes
 import os
 from collections.abc import AsyncIterator, Callable, Iterable
@@ -191,19 +192,28 @@ class Assets(_Resource):
             return await self._upload_resumable(path, size, metadata, on_progress)
 
         mime = mimetypes.guess_type(path.name)[0] or "application/octet-stream"
+        # The contract lets a client name the file something other than what it is called
+        # on disk — an importer restoring a name an export truncated, for instance.
+        name = metadata.filename or path.name
         form: dict[str, Any] = {}
+        if metadata.filename:
+            form["filename"] = metadata.filename
         if metadata.device_asset_id:
             form["deviceAssetId"] = metadata.device_asset_id
         if metadata.captured_at:
             form["capturedAt"] = metadata.captured_at
         if metadata.favorite is not None:
             form["favorite"] = str(metadata.favorite).lower()
+        if metadata.description:
+            form["description"] = metadata.description
+        if metadata.location:
+            form["location"] = json.dumps(as_json(metadata.location))
 
         with path.open("rb") as handle:
             body = await self.http.request(
                 "POST",
                 "/api/v1/assets",
-                files={"file": (path.name, handle, mime)},
+                files={"file": (name, handle, mime)},
                 data=form or None,
             )
 
@@ -219,12 +229,14 @@ class Assets(_Resource):
         on_progress: Callable[[UploadProgress], None] | None,
     ) -> AssetUploadResult:
         create = UploadSessionCreate(
-            filename=path.name,
+            filename=metadata.filename or path.name,
             size_bytes=size,
             mime_type=mimetypes.guess_type(path.name)[0] or "application/octet-stream",
             device_asset_id=metadata.device_asset_id,
             captured_at=metadata.captured_at,
             favorite=metadata.favorite,
+            description=metadata.description,
+            location=metadata.location,
         )
         session = UploadSession.model_validate(
             await self.http.request("POST", "/api/v1/uploads", json=as_json(create))

@@ -156,8 +156,11 @@ public struct Assets: Sendable {
         }
 
         body.append("--\(boundary)\r\n")
+        // The contract lets a client name the file something other than what it is called
+        // on disk — an importer restoring a name an export truncated, for instance.
+        let uploadName = options.metadata.filename ?? fileURL.lastPathComponent
         body.append(
-            "Content-Disposition: form-data; name=\"file\"; filename=\"\(fileURL.lastPathComponent)\"\r\n"
+            "Content-Disposition: form-data; name=\"file\"; filename=\"\(uploadName)\"\r\n"
         )
         body.append("Content-Type: \(mimeType(for: fileURL))\r\n\r\n")
         body.append(try Data(contentsOf: fileURL))
@@ -166,6 +169,13 @@ public struct Assets: Sendable {
         if let value = options.metadata.deviceAssetId { field("deviceAssetId", value) }
         if let value = options.metadata.capturedAt { field("capturedAt", value) }
         if let value = options.metadata.favorite { field("favorite", String(value)) }
+        if let value = options.metadata.description { field("description", value) }
+        if let value = options.metadata.filename { field("filename", value) }
+        if let value = options.metadata.location,
+            let encoded = String(data: try http.encode(value), encoding: .utf8)
+        {
+            field("location", encoded)
+        }
         body.append("--\(boundary)--\r\n")
 
         let result: AssetUploadResult = try await http.request(
@@ -184,13 +194,15 @@ public struct Assets: Sendable {
         _ fileURL: URL, size: Int, options: UploadOptions
     ) async throws -> AssetUploadResult {
         let create = UploadSessionCreate(
-            filename: fileURL.lastPathComponent,
+            filename: options.metadata.filename ?? fileURL.lastPathComponent,
             sizeBytes: size,
             mimeType: mimeType(for: fileURL),
             checksum: nil,
             deviceAssetId: options.metadata.deviceAssetId,
             capturedAt: options.metadata.capturedAt,
-            favorite: options.metadata.favorite
+            favorite: options.metadata.favorite,
+            description: options.metadata.description,
+            location: options.metadata.location
         )
 
         let session: UploadSession = try await http.request(

@@ -4,7 +4,7 @@ use std::sync::Arc;
 use futures::stream::{self, StreamExt, TryStreamExt};
 use reqwest::Method;
 use serde_json::json;
-use tokio::io::{AsyncReadExt, AsyncSeekExt};
+use tokio::io::{AsyncReadExt, AsyncSeekExt, AsyncWriteExt};
 
 use crate::error::{Error, Result};
 use crate::http::{HttpClient, RequestOptions};
@@ -237,6 +237,59 @@ impl Assets {
         Ok(response.bytes().await?.to_vec())
     }
 
+    /// Streams one variant to a file, so a two-gigabyte video never sits in memory.
+    ///
+    /// Writes to a sibling `.part` and renames on success: an interrupted download leaves
+    /// no file that looks finished.
+    pub async fn download_to(
+        &self,
+        asset_id: &str,
+        variant: AssetVariant,
+        destination: &Path,
+        on_progress: Option<&ProgressFn>,
+    ) -> Result<u64> {
+        let path = match variant {
+            AssetVariant::Original => format!("/api/v1/assets/{asset_id}/download"),
+            _ => format!("/api/v1/assets/{asset_id}/{}", variant.as_str()),
+        };
+        let response = self
+            .http
+            .send(Method::GET, &path, RequestOptions::default())
+            .await?;
+
+        let total = response.content_length().unwrap_or(0);
+        if let Some(parent) = destination.parent() {
+            tokio::fs::create_dir_all(parent).await?;
+        }
+        let partial = destination.with_extension(format!(
+            "{}part",
+            destination
+                .extension()
+                .and_then(|e| e.to_str())
+                .map(|e| format!("{e}."))
+                .unwrap_or_default()
+        ));
+
+        let mut file = tokio::fs::File::create(&partial).await?;
+        let mut loaded = 0u64;
+        let mut stream = response.bytes_stream();
+        while let Some(chunk) = stream.next().await {
+            let chunk = chunk.map_err(Error::Transport)?;
+            file.write_all(&chunk).await?;
+            loaded += chunk.len() as u64;
+            if let Some(report) = on_progress {
+                report(UploadProgress {
+                    loaded,
+                    total: total.max(loaded),
+                });
+            }
+        }
+        file.flush().await?;
+        drop(file);
+        tokio::fs::rename(&partial, destination).await?;
+        Ok(loaded)
+    }
+
     /// Uploads one file, choosing the protocol by size: small files go in a single
     /// request, large ones use a resumable session so a dropped connection costs one
     /// chunk rather than the whole video.
@@ -246,7 +299,13 @@ impl Assets {
             return self.upload_resumable(path, size, options).await;
         }
 
-        let filename = file_name(path);
+        // The contract lets a client name the file something other than what it is called
+        // on disk — an importer restoring a name the export truncated, for instance.
+        let filename = options
+            .metadata
+            .filename
+            .clone()
+            .unwrap_or_else(|| file_name(path));
         let mime = mime_for(path);
         let bytes = tokio::fs::read(path).await?;
 
@@ -264,6 +323,15 @@ impl Assets {
         }
         if let Some(v) = options.metadata.favorite {
             form = form.text("favorite", v.to_string());
+        }
+        if let Some(v) = &options.metadata.description {
+            form = form.text("description", v.clone());
+        }
+        if let Some(v) = &options.metadata.location {
+            form = form.text("location", serde_json::to_string(v)?);
+        }
+        if let Some(v) = &options.metadata.filename {
+            form = form.text("filename", v.clone());
         }
 
         let result: AssetUploadResult = self
@@ -294,13 +362,19 @@ impl Assets {
         options: &UploadOptions,
     ) -> Result<AssetUploadResult> {
         let create = UploadSessionCreate {
-            filename: file_name(path),
+            filename: options
+                .metadata
+                .filename
+                .clone()
+                .unwrap_or_else(|| file_name(path)),
             size_bytes: size,
             mime_type: mime_for(path),
             checksum: None,
             device_asset_id: options.metadata.device_asset_id.clone(),
             captured_at: options.metadata.captured_at.clone(),
             favorite: options.metadata.favorite,
+            description: options.metadata.description.clone(),
+            location: options.metadata.location.clone(),
         };
 
         let session: UploadSession = self

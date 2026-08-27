@@ -152,12 +152,18 @@ class Assets internal constructor(private val http: HttpClient) {
                     bytes,
                     Headers.build {
                         append(HttpHeaders.ContentType, mimeTypeFor(file))
-                        append(HttpHeaders.ContentDisposition, "filename=\"${file.name}\"")
+                        append(
+                            HttpHeaders.ContentDisposition,
+                            "filename=\"${options.metadata.filename ?: file.name}\"",
+                        )
                     },
                 )
                 options.metadata.deviceAssetId?.let { append("deviceAssetId", it) }
                 options.metadata.capturedAt?.let { append("capturedAt", it) }
                 options.metadata.favorite?.let { append("favorite", it.toString()) }
+                options.metadata.description?.let { append("description", it) }
+                options.metadata.filename?.let { append("filename", it) }
+                options.metadata.location?.let { append("location", wireJson.encodeToString(it)) }
             }
         )
 
@@ -176,12 +182,14 @@ class Assets internal constructor(private val http: HttpClient) {
         options: UploadOptions,
     ): AssetUploadResult {
         val create = UploadSessionCreate(
-            filename = file.name,
+            filename = options.metadata.filename ?: file.name,
             sizeBytes = size,
             mimeType = mimeTypeFor(file),
             deviceAssetId = options.metadata.deviceAssetId,
             capturedAt = options.metadata.capturedAt,
             favorite = options.metadata.favorite,
+            description = options.metadata.description,
+            location = options.metadata.location,
         )
 
         val session: UploadSession = http.request(

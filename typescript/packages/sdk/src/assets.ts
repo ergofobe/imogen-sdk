@@ -128,10 +128,15 @@ export class Assets {
     }
 
     const form = new FormData()
-    form.set('file', file)
+    // The contract lets a client name the file something other than what the File object
+    // is called — an importer restoring a name an export truncated, for instance.
+    form.set('file', file, options.filename ?? file.name)
+    if (options.filename) form.set('filename', options.filename)
     if (options.deviceAssetId) form.set('deviceAssetId', options.deviceAssetId)
     if (options.capturedAt) form.set('capturedAt', options.capturedAt)
     if (options.favorite !== undefined) form.set('favorite', String(options.favorite))
+    if (options.description) form.set('description', options.description)
+    if (options.location) form.set('location', JSON.stringify(options.location))
 
     const result = await this.http.request<AssetUploadResult>('POST', '/api/v1/assets', {
       formData: form,
@@ -144,12 +149,14 @@ export class Assets {
   private async uploadResumable(file: File, options: UploadOptions): Promise<AssetUploadResult> {
     const session = await this.http.request<UploadSession>('POST', '/api/v1/uploads', {
       body: {
-        filename: file.name,
+        filename: options.filename ?? file.name,
         sizeBytes: file.size,
         mimeType: file.type || 'application/octet-stream',
         ...(options.deviceAssetId ? { deviceAssetId: options.deviceAssetId } : {}),
         ...(options.capturedAt ? { capturedAt: options.capturedAt } : {}),
         ...(options.favorite !== undefined ? { favorite: options.favorite } : {}),
+        ...(options.description ? { description: options.description } : {}),
+        ...(options.location ? { location: options.location } : {}),
       },
       ...(options.signal ? { signal: options.signal } : {}),
     })
