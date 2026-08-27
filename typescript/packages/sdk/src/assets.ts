@@ -1,6 +1,7 @@
 import type {
   Asset,
   AssetQuery,
+  AssetSelection,
   AssetUpdate,
   AssetUploadMetadata,
   AssetUploadResult,
@@ -10,6 +11,7 @@ import type {
   ShareLinkCreate,
   TimelineBucket,
   TimelineBucketQuery,
+  TimelineQuery,
   TimelineTile,
   UploadSession,
 } from '@imogen/shared'
@@ -21,6 +23,12 @@ import {
 import type { HttpClient } from './http.ts'
 
 export type AssetPage = { items: Asset[]; nextCursor: string | null; total: number | null }
+export type TilePage = { items: TimelineTile[]; nextCursor: string | null; total: number | null }
+
+/** The id list is the older, shorter way of saying the same thing. */
+export function selectionBody(selection: string[] | AssetSelection): AssetSelection {
+  return Array.isArray(selection) ? { assetIds: selection } : selection
+}
 
 export type UploadProgress = {
   /** Bytes transferred so far for this file. */
@@ -88,23 +96,26 @@ export class Assets {
     return this.http.request<Asset>('PATCH', `/api/v1/assets/${assetId}`, { body: patch })
   }
 
-  trash(assetIds: string[]): Promise<{ count: number }> {
-    return this.http.request('POST', '/api/v1/assets/trash', { body: { assetIds } })
+  trash(selection: string[] | AssetSelection): Promise<{ count: number }> {
+    return this.http.request('POST', '/api/v1/assets/trash', { body: selectionBody(selection) })
   }
 
-  restore(assetIds: string[]): Promise<{ count: number }> {
-    return this.http.request('POST', '/api/v1/assets/restore', { body: { assetIds } })
+  restore(selection: string[] | AssetSelection): Promise<{ count: number }> {
+    return this.http.request('POST', '/api/v1/assets/restore', { body: selectionBody(selection) })
   }
 
-  timeline(): Promise<{ buckets: TimelineBucket[] }> {
-    return this.http.request('GET', '/api/v1/assets/timeline')
+  timeline(query: Partial<TimelineQuery> = {}): Promise<{ buckets: TimelineBucket[] }> {
+    return this.http.request('GET', '/api/v1/assets/timeline', { query })
   }
 
-  /** One page of grid tiles for a period — the timeline's lazy fetch as it scrubs. */
+  /**
+   * Every tile in one period, in one round trip, for a grid that lays itself out.
+   * `limit` defaults server-side, so only `period` is required here.
+   */
   timelineBucket(
-    query: Partial<TimelineBucketQuery>,
-  ): Promise<{ items: TimelineTile[]; nextCursor: string | null }> {
-    return this.http.request('GET', '/api/v1/assets/timeline/bucket', { query })
+    query: Pick<TimelineBucketQuery, 'period'> & Partial<TimelineBucketQuery>,
+  ): Promise<TilePage> {
+    return this.http.request<TilePage>('GET', '/api/v1/assets/timeline/bucket', { query })
   }
 
   stats(): Promise<LibraryStats> {

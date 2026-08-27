@@ -6,6 +6,7 @@ export type {
   AlbumWithAssets,
   Asset,
   AssetQuery,
+  AssetSelection,
   AssetType,
   AssetUpdate,
   AssetUploadResult,
@@ -25,6 +26,9 @@ export type {
   ProfileUpdate,
   ShareLink,
   TimelineBucket,
+  TimelineBucketQuery,
+  TimelineQuery,
+  TimelineTile,
   User,
 } from '@imogen/shared'
 export * from './admin.ts'
@@ -34,6 +38,8 @@ export {
   Assets,
   type BulkUploadOptions,
   type BulkUploadResult,
+  selectionBody,
+  type TilePage,
   type UploadOptions,
   type UploadProgress,
 } from './assets.ts'

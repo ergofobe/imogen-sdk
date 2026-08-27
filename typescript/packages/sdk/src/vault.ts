@@ -1,4 +1,5 @@
-import type { Asset } from '@imogen/shared'
+import type { Asset, AssetSelection } from '@imogen/shared'
+import { selectionBody } from './assets.ts'
 import type { HttpClient } from './http.ts'
 
 export type VaultStatus = {
@@ -43,11 +44,11 @@ export class Vault {
     return page.items
   }
 
-  moveIn(assetIds: string[]): Promise<{ moved: number }> {
-    return this.http.request('POST', '/api/v1/vault/assets', { body: { assetIds } })
+  moveIn(selection: string[] | AssetSelection): Promise<{ moved: number }> {
+    return this.http.request('POST', '/api/v1/vault/assets', { body: selectionBody(selection) })
   }
 
-  moveOut(assetIds: string[]): Promise<{ moved: number }> {
-    return this.http.request('DELETE', '/api/v1/vault/assets', { body: { assetIds } })
+  moveOut(selection: string[] | AssetSelection): Promise<{ moved: number }> {
+    return this.http.request('DELETE', '/api/v1/vault/assets', { body: selectionBody(selection) })
   }
 }
