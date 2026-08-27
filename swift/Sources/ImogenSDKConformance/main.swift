@@ -69,6 +69,9 @@ await scenario("retries a retryable rejection and then succeeds") {
 await scenario("does not retry a rejection the server will keep rejecting") {
     try await Conformance.testDoesNotRetryARejectionTheServerWillKeepRejecting()
 }
+await scenario("refuses an id list with exclusions rather than sending it") {
+    try await Conformance.testRefusesAnIdListWithExclusionsRatherThanSendingIt()
+}
 await scenario("the vault listing says how big the vault is") {
     try await Conformance.testTheVaultListingSaysHowBigTheVaultIs()
 }

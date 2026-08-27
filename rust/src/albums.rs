@@ -65,6 +65,7 @@ impl Albums {
         album_id: &str,
         selection: &AssetSelection,
     ) -> Result<AlbumAssetsResult> {
+        selection.validate()?;
         self.http
             .request(
                 Method::POST,
@@ -79,6 +80,7 @@ impl Albums {
         album_id: &str,
         selection: &AssetSelection,
     ) -> Result<RemovedCount> {
+        selection.validate()?;
         self.http
             .request(
                 Method::DELETE,

@@ -121,6 +121,21 @@ describe('AssetSelection', () => {
     ).toThrow()
   })
 
+  /*
+   * The id branch of a bulk mutation never looks at `except`, so a request carrying both
+   * trashes the photograph the caller explicitly excluded. Truncating the list quietly
+   * would be a destructive action silently narrowed — undetectable until somebody goes
+   * looking for a picture — so the shape is refused instead.
+   */
+  test('refuses exclusions beside an explicit id list', () => {
+    expect(() =>
+      AssetSelection.parse({
+        assetIds: ['6a5f1e2c-90b4-4d1a-8f3e-2b7c9d0a1e45', '2b7c9d0a-1e45-4d1a-8f3e-6a5f1e2c90b4'],
+        except: ['6a5f1e2c-90b4-4d1a-8f3e-2b7c9d0a1e45'],
+      }),
+    ).toThrow(/except/)
+  })
+
   test('refuses neither form', () => {
     expect(() => AssetSelection.parse({})).toThrow()
   })

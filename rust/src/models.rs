@@ -457,6 +457,29 @@ impl AssetSelection {
             ..Default::default()
         }
     }
+
+    /// Why this selection cannot be sent, or `Ok(())` when it can. Every method that
+    /// sends one checks it first, so a client learns of a contradictory selection here
+    /// rather than from a 400 after the request has gone.
+    pub fn validate(&self) -> crate::error::Result<()> {
+        if self.asset_ids.is_none() == self.query.is_none() {
+            return Err(crate::error::Error::Invalid(
+                "Provide exactly one of assetIds or query".to_string(),
+            ));
+        }
+        // `except` narrows a filter; beside an explicit list it is a contradiction, and
+        // the server's id branch never reads it — so honouring the request would act on
+        // the very photographs the caller excluded. Rejecting matches the cap rule: a
+        // destructive action silently narrowed is undetectable until somebody goes
+        // looking for a picture that is no longer there.
+        if self.asset_ids.is_some() && self.except.is_some() {
+            return Err(crate::error::Error::Invalid(
+                "except narrows a query selection only; with assetIds, leave the unwanted ids out of the list"
+                    .to_string(),
+            ));
+        }
+        Ok(())
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]

@@ -47,3 +47,20 @@ test('trash accepts a selection by query', async () => {
   await new Assets(http).trash({ query: { favorite: true }, except: [] })
   expect(http.calls[0]?.body).toEqual({ query: { favorite: true }, except: [] })
 })
+
+/*
+ * Learned here rather than from a 400. A client that builds the contradictory shape and
+ * only finds out when the server answers has already sent a destructive request whose
+ * exclusions the server's id branch ignores.
+ */
+test('trash refuses an id list with exclusions rather than sending it', () => {
+  const http = recordingHttp({ count: 0 })
+
+  expect(() =>
+    new Assets(http).trash({
+      assetIds: ['6a5f1e2c-90b4-4d1a-8f3e-2b7c9d0a1e45', '2b7c9d0a-1e45-4d1a-8f3e-6a5f1e2c90b4'],
+      except: ['6a5f1e2c-90b4-4d1a-8f3e-2b7c9d0a1e45'],
+    }),
+  ).toThrow(/except/)
+  expect(http.calls).toHaveLength(0)
+})

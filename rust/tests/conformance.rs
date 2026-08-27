@@ -608,6 +608,25 @@ async fn builds_image_urls_without_a_request() {
     );
 }
 
+/// `except` narrows a filter. Beside an explicit id list it is a contradiction the
+/// server's id branch never reads, so honouring it would trash the very photographs the
+/// caller excluded — refused before the request leaves rather than learned from a 400.
+#[tokio::test]
+async fn refuses_an_id_list_with_exclusions_rather_than_sending_it() {
+    let server = stub::start(|_, _| Reply::json(r#"{"count":0}"#)).await;
+
+    let client = ImogenClient::new(ClientOptions::new(&server.base_url));
+    let selection = AssetSelection {
+        asset_ids: Some(vec!["a".to_string(), "b".to_string()]),
+        except: Some(vec!["a".to_string()]),
+        ..Default::default()
+    };
+    let error = client.assets.trash(&selection).await.unwrap_err();
+
+    assert!(error.to_string().contains("except"), "{error}");
+    assert_eq!(server.call_count(), 0);
+}
+
 /// The listing is capped, and the cap has to be visible. A return type carrying only the
 /// rows cannot say "there are four thousand of these and you have two hundred", which is
 /// the difference between a sample and the whole vault.

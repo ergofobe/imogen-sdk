@@ -387,6 +387,23 @@ enum Conformance {
         expectEqual(StubState.shared.callCount, 1)
     }
 
+    /// `except` narrows a filter. Beside an explicit id list it is a contradiction the
+    /// server's id branch never reads, so honouring it would trash the very photographs
+    /// the caller excluded — refused before the request leaves rather than from a 400.
+    static func testRefusesAnIdListWithExclusionsRatherThanSendingIt() async throws {
+        let session = stubbedSession { _, _ in .json(#"{"count":0}"#) }
+        let client = ImogenClient(options: ClientOptions(baseURL: Conformance.base, session: session))
+
+        do {
+            _ = try await client.assets.trash(
+                AssetSelection(assetIds: ["a", "b"], except: ["a"]))
+            fail("should have refused a selection excluding ids it also names")
+        } catch let error as ImogenError {
+            expectTrue(error.message.contains("except"), error.message)
+        }
+        expectEqual(StubState.shared.callCount, 0)
+    }
+
     /// The listing is capped, and the cap has to be visible. A return type carrying only
     /// the rows cannot say "there are four thousand of these and you have two hundred",
     /// which is the difference between a sample and the whole vault.

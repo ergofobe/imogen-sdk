@@ -173,6 +173,7 @@ impl Assets {
     }
 
     pub async fn trash(&self, selection: &AssetSelection) -> Result<AffectedCount> {
+        selection.validate()?;
         self.http
             .request(
                 Method::POST,
@@ -183,6 +184,7 @@ impl Assets {
     }
 
     pub async fn restore(&self, selection: &AssetSelection) -> Result<AffectedCount> {
+        selection.validate()?;
         self.http
             .request(
                 Method::POST,

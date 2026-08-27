@@ -339,6 +339,26 @@ class AssetSelection(Contract):
     #: Capped deliberately: past this, an interface should not be offering a selection.
     except_: list[str] | None = Field(default=None, alias="except")
 
+    def problem(self) -> str | None:
+        """Why this selection cannot be sent, or ``None`` when it can.
+
+        Every method that sends one checks this first, so a client learns of a
+        contradictory selection here rather than from a 400 after the request has gone.
+        """
+        if (self.asset_ids is None) == (self.query is None):
+            return "Provide exactly one of assetIds or query"
+        # ``except`` narrows a filter; beside an explicit list it is a contradiction, and
+        # the server's id branch never reads it -- so honouring the request would act on
+        # the very photographs the caller excluded. Rejecting matches the cap rule: a
+        # destructive action silently narrowed is undetectable until somebody goes looking
+        # for a picture that is no longer there.
+        if self.asset_ids is not None and self.except_ is not None:
+            return (
+                "except narrows a query selection only; with assetIds, leave the "
+                "unwanted ids out of the list"
+            )
+        return None
+
 
 class LibraryStats(Contract):
     asset_count: int

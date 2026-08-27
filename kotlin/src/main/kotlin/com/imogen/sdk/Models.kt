@@ -341,7 +341,27 @@ data class AssetSelection(
     val query: AssetFilter? = null,
     /** Capped deliberately: past this, an interface should not be offering a selection. */
     val except: List<String>? = null,
-)
+) {
+    /**
+     * Throws when this selection cannot be sent. Every method that sends one checks first,
+     * so a client learns of a contradictory selection here rather than from a 400 after
+     * the request has gone.
+     */
+    fun validate() {
+        require((assetIds == null) != (query == null)) {
+            "Provide exactly one of assetIds or query"
+        }
+        // `except` narrows a filter; beside an explicit list it is a contradiction, and the
+        // server's id branch never reads it -- so honouring the request would act on the
+        // very photographs the caller excluded. Rejecting matches the cap rule: a
+        // destructive action silently narrowed is undetectable until somebody goes looking
+        // for a picture that is no longer there.
+        require(assetIds == null || except == null) {
+            "except narrows a query selection only; with assetIds, leave the unwanted " +
+                "ids out of the list"
+        }
+    }
+}
 
 @Serializable
 data class LibraryStats(

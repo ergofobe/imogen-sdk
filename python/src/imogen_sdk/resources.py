@@ -106,8 +106,16 @@ class BulkUploadResult:
 
 
 def _selection_body(selection: Iterable[str] | AssetSelection) -> dict[str, Any]:
-    """The id list is the older, shorter way of saying the same thing."""
+    """The id list is the older, shorter way of saying the same thing.
+
+    A selection built the wrong way is refused here rather than at the server, because
+    every one of these calls is destructive or close to it, and by the time a 400 comes
+    back the request has already been sent.
+    """
     if isinstance(selection, AssetSelection):
+        problem = selection.problem()
+        if problem:
+            raise ValueError(problem)
         return as_json(selection) or {}
     return as_json(AssetSelection(asset_ids=list(selection))) or {}
 

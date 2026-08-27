@@ -121,10 +121,39 @@ export const AssetSelection = z
     /** Capped deliberately: past this, an interface should not be offering a selection. */
     except: z.array(z.uuid()).max(10_000).optional(),
   })
-  .refine((value) => (value.assetIds === undefined) !== (value.query === undefined), {
-    message: 'Provide exactly one of assetIds or query',
+  .superRefine((value, ctx) => {
+    const problem = assetSelectionProblem(value)
+    if (problem) ctx.addIssue({ code: 'custom', message: problem })
   })
 export type AssetSelection = z.infer<typeof AssetSelection>
+
+/**
+ * Why a selection cannot be sent, or null when it can.
+ *
+ * Written out rather than left inside the refinement because a client should learn this
+ * before the request leaves, not from a 400: every port checks the same two rules, and
+ * the SDK's own selection helper checks them with this.
+ */
+export function assetSelectionProblem(selection: {
+  assetIds?: unknown
+  query?: unknown
+  except?: unknown
+}): string | null {
+  if ((selection.assetIds === undefined) === (selection.query === undefined)) {
+    return 'Provide exactly one of assetIds or query'
+  }
+  /*
+   * `except` narrows a filter; beside an explicit list it is a contradiction, and the
+   * server's id branch never reads it — so honouring the request would trash the very
+   * photographs the caller excluded. Rejecting matches the cap rule above: a destructive
+   * action that has been silently narrowed is undetectable until somebody goes looking
+   * for a picture that is no longer there.
+   */
+  if (selection.assetIds !== undefined && selection.except !== undefined) {
+    return 'except narrows a query selection only; with assetIds, leave the unwanted ids out of the list'
+  }
+  return null
+}
 
 export const LibraryStats = z.object({
   assetCount: z.number().int().nonnegative(),

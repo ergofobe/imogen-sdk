@@ -105,6 +105,7 @@ class Assets internal constructor(private val http: HttpClient) {
     suspend fun trash(assetIds: List<String>): Long = trash(AssetSelection(assetIds = assetIds))
 
     suspend fun trash(selection: AssetSelection): Long {
+        selection.validate()
         val result: AffectedCount = http.request(
             "POST",
             "/api/v1/assets/trash",
@@ -116,6 +117,7 @@ class Assets internal constructor(private val http: HttpClient) {
     suspend fun restore(assetIds: List<String>): Long = restore(AssetSelection(assetIds = assetIds))
 
     suspend fun restore(selection: AssetSelection): Long {
+        selection.validate()
         val result: AffectedCount = http.request(
             "POST",
             "/api/v1/assets/restore",
@@ -299,16 +301,20 @@ class Albums internal constructor(private val http: HttpClient) {
     suspend fun addAssets(albumId: String, assetIds: List<String>): AlbumAssetsResult =
         addAssets(albumId, AssetSelection(assetIds = assetIds))
 
-    suspend fun addAssets(albumId: String, selection: AssetSelection): AlbumAssetsResult = http.request(
-        "POST",
-        "/api/v1/albums/$albumId/assets",
-        RequestOptions(body = wireJson.encodeToString(selection), headers = jsonHeaders),
-    )
+    suspend fun addAssets(albumId: String, selection: AssetSelection): AlbumAssetsResult {
+        selection.validate()
+        return http.request(
+            "POST",
+            "/api/v1/albums/$albumId/assets",
+            RequestOptions(body = wireJson.encodeToString(selection), headers = jsonHeaders),
+        )
+    }
 
     suspend fun removeAssets(albumId: String, assetIds: List<String>): Long =
         removeAssets(albumId, AssetSelection(assetIds = assetIds))
 
     suspend fun removeAssets(albumId: String, selection: AssetSelection): Long {
+        selection.validate()
         val result: RemovedCount = http.request(
             "DELETE",
             "/api/v1/albums/$albumId/assets",
@@ -495,6 +501,7 @@ class Vault internal constructor(private val http: HttpClient) {
     suspend fun moveIn(assetIds: List<String>): Long = moveIn(AssetSelection(assetIds = assetIds))
 
     suspend fun moveIn(selection: AssetSelection): Long {
+        selection.validate()
         val result: MovedCount = http.request(
             "POST",
             "/api/v1/vault/assets",
@@ -506,6 +513,7 @@ class Vault internal constructor(private val http: HttpClient) {
     suspend fun moveOut(assetIds: List<String>): Long = moveOut(AssetSelection(assetIds = assetIds))
 
     suspend fun moveOut(selection: AssetSelection): Long {
+        selection.validate()
         val result: MovedCount = http.request(
             "DELETE",
             "/api/v1/vault/assets",

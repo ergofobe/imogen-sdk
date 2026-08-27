@@ -16,6 +16,7 @@ import type {
   UploadSession,
 } from '@imogen/shared'
 import {
+  assetSelectionProblem,
   BULK_UPLOAD_CONCURRENCY,
   RESUMABLE_THRESHOLD_BYTES,
   UPLOAD_CHUNK_BYTES,
@@ -25,9 +26,18 @@ import type { HttpClient } from './http.ts'
 export type AssetPage = { items: Asset[]; nextCursor: string | null; total: number | null }
 export type TilePage = { items: TimelineTile[]; nextCursor: string | null; total: number | null }
 
-/** The id list is the older, shorter way of saying the same thing. */
+/**
+ * The id list is the older, shorter way of saying the same thing.
+ *
+ * A selection built the wrong way is refused here rather than at the server, because
+ * every one of these calls is destructive or close to it, and by the time a 400 comes
+ * back the request has already been sent.
+ */
 export function selectionBody(selection: string[] | AssetSelection): AssetSelection {
-  return Array.isArray(selection) ? { assetIds: selection } : selection
+  if (Array.isArray(selection)) return { assetIds: selection }
+  const problem = assetSelectionProblem(selection)
+  if (problem) throw new TypeError(problem)
+  return selection
 }
 
 export type UploadProgress = {

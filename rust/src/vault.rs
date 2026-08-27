@@ -133,6 +133,7 @@ impl Vault {
     }
 
     pub async fn move_in(&self, selection: &AssetSelection) -> Result<MovedCount> {
+        selection.validate()?;
         self.http
             .request(
                 Method::POST,
@@ -143,6 +144,7 @@ impl Vault {
     }
 
     pub async fn move_out(&self, selection: &AssetSelection) -> Result<MovedCount> {
+        selection.validate()?;
         self.http
             .request(
                 Method::DELETE,

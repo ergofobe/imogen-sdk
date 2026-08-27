@@ -458,6 +458,22 @@ ASSET_JSON = {
 }
 
 
+async def test_refuses_an_id_list_with_exclusions_rather_than_sending_it(serve: Any) -> None:
+    """``except`` narrows a filter.
+
+    Beside an explicit id list it is a contradiction the server's id branch never reads,
+    so honouring it would trash the very photographs the caller excluded. Refused before
+    the request leaves rather than learned from a 400.
+    """
+    stub = serve(lambda _request, _index: Reply(body='{"count":0}'))
+
+    async with ImogenClient(stub.base_url) as client:
+        with pytest.raises(ValueError, match="except"):
+            await client.assets.trash(AssetSelection(asset_ids=["a", "b"], except_=["a"]))
+
+    assert stub.call_count == 0
+
+
 async def test_the_vault_listing_says_how_big_the_vault_is(serve: Any) -> None:
     """The listing is capped, and the cap has to be visible.
 

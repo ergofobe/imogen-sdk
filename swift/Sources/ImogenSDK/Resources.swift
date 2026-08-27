@@ -101,6 +101,7 @@ public struct Assets: Sendable {
 
     @discardableResult
     public func trash(_ selection: AssetSelection) async throws -> Int {
+        try selection.validate()
         let result: AffectedCount = try await http.request(
             "POST", "/api/v1/assets/trash",
             RequestOptions(body: try http.encode(selection), headers: jsonHeaders)
@@ -115,6 +116,7 @@ public struct Assets: Sendable {
 
     @discardableResult
     public func restore(_ selection: AssetSelection) async throws -> Int {
+        try selection.validate()
         let result: AffectedCount = try await http.request(
             "POST", "/api/v1/assets/restore",
             RequestOptions(body: try http.encode(selection), headers: jsonHeaders)
@@ -341,7 +343,8 @@ public struct Albums: Sendable {
 
     @discardableResult
     public func addAssets(_ albumId: String, _ selection: AssetSelection) async throws -> AlbumAssetsResult {
-        try await http.request(
+        try selection.validate()
+        return try await http.request(
             "POST", "/api/v1/albums/\(albumId)/assets",
             RequestOptions(body: try http.encode(selection), headers: jsonHeaders)
         )
@@ -354,6 +357,7 @@ public struct Albums: Sendable {
 
     @discardableResult
     public func removeAssets(_ albumId: String, _ selection: AssetSelection) async throws -> Int {
+        try selection.validate()
         let result: RemovedCount = try await http.request(
             "DELETE", "/api/v1/albums/\(albumId)/assets",
             RequestOptions(body: try http.encode(selection), headers: jsonHeaders)
@@ -539,6 +543,7 @@ public struct Vault: Sendable {
 
     @discardableResult
     public func moveIn(_ selection: AssetSelection) async throws -> Int {
+        try selection.validate()
         let result: MovedCount = try await http.request(
             "POST", "/api/v1/vault/assets",
             RequestOptions(body: try http.encode(selection), headers: jsonHeaders)
@@ -553,6 +558,7 @@ public struct Vault: Sendable {
 
     @discardableResult
     public func moveOut(_ selection: AssetSelection) async throws -> Int {
+        try selection.validate()
         let result: MovedCount = try await http.request(
             "DELETE", "/api/v1/vault/assets",
             RequestOptions(body: try http.encode(selection), headers: jsonHeaders)
