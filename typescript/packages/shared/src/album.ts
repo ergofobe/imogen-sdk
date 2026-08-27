@@ -15,7 +15,15 @@ export const Album = z.object({
 })
 export type Album = z.infer<typeof Album>
 
-export const AlbumWithAssets = Album.extend({ assets: z.array(Asset) })
+export const AlbumWithAssets = Album.extend({
+  assets: z
+    .array(Asset)
+    .describe(
+      'A cover sample, not the whole album: at most 60 photographs, newest ' +
+        '(capturedAt desc, id desc) first. For every photo in the album, page ' +
+        "GET /assets or GET /assets/timeline/bucket with albumId set to this album's id.",
+    ),
+})
 export type AlbumWithAssets = z.infer<typeof AlbumWithAssets>
 
 export const AlbumCreate = z.object({
