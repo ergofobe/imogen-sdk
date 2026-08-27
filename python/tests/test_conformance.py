@@ -27,6 +27,7 @@ from imogen_sdk import (
     Asset,
     AssetPage,
     AssetQuery,
+    AssetSelection,
     AssetUpdate,
     AuthConfig,
     DetectedFace,
@@ -412,6 +413,17 @@ def test_builds_image_urls_without_a_request() -> None:
     assert (
         client.assets.download_url("A1") == "https://photos.example.test/api/v1/assets/A1/download"
     )
+
+
+def test_asset_selection_dumps_except_as_the_reserved_word_it_is() -> None:
+    """``except`` is a Python keyword, so the model stores it as ``except_`` with an
+    explicit alias. That alias must win over the class's ``to_camel`` generator, which
+    would otherwise emit ``"except_"``, not the wire name the server expects.
+    """
+    body = AssetSelection(except_=["b"]).model_dump(by_alias=True, exclude_none=True)
+
+    assert body == {"except": ["b"]}
+    assert "except_" not in body
 
 
 ASSET_JSON = {

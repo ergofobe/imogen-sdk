@@ -294,6 +294,8 @@ class ConformanceTest {
         check<VaultStatus>("vaultStatusLocked")
         check<VaultStatus>("vaultStatusUnlocked")
         check<Timeline>("timeline")
+        check<TimelineBucket>("timelineBucket")
+        check<TimelineTile>("timelineTile")
         check<LibraryStats>("libraryStats")
         check<UploadSession>("uploadSession")
         check<AdminUser>("adminUser")

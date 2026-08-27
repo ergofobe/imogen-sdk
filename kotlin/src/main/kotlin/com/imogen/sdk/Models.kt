@@ -185,6 +185,8 @@ data class AssetQuery(
     val q: String? = null,
     val type: AssetType? = null,
     val albumId: String? = null,
+    /** Photographs a given person appears in. */
+    val personId: String? = null,
     val favorite: Boolean? = null,
     val archived: Boolean? = null,
     /** When true, returns only trashed assets. Trashed assets are hidden otherwise. */
@@ -206,6 +208,7 @@ data class AssetQuery(
         q?.let { add("q" to it) }
         type?.let { add("type" to if (it == AssetType.IMAGE) "image" else "video") }
         albumId?.let { add("albumId" to it) }
+        personId?.let { add("personId" to it) }
         favorite?.let { add("favorite" to it.toString()) }
         archived?.let { add("archived" to it.toString()) }
         trashed?.let { add("trashed" to it.toString()) }

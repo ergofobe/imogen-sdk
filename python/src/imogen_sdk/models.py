@@ -254,6 +254,8 @@ class AssetQuery(Contract):
     q: str | None = None
     type: AssetType | None = None
     album_id: str | None = None
+    #: Photographs a given person appears in.
+    person_id: str | None = None
     favorite: bool | None = None
     archived: bool | None = None
     #: When true, returns only trashed assets. Trashed assets are hidden otherwise.

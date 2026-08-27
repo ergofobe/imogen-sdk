@@ -177,6 +177,8 @@ public struct AssetQuery: Hashable, Sendable {
     public var q: String?
     public var type: AssetType?
     public var albumId: String?
+    /// Photographs a given person appears in.
+    public var personId: String?
     public var favorite: Bool?
     public var archived: Bool?
     /// When true, returns only trashed assets. Trashed assets are hidden otherwise.
@@ -194,6 +196,7 @@ public struct AssetQuery: Hashable, Sendable {
         q: String? = nil,
         type: AssetType? = nil,
         albumId: String? = nil,
+        personId: String? = nil,
         favorite: Bool? = nil,
         archived: Bool? = nil,
         trashed: Bool? = nil,
@@ -208,6 +211,7 @@ public struct AssetQuery: Hashable, Sendable {
         self.q = q
         self.type = type
         self.albumId = albumId
+        self.personId = personId
         self.favorite = favorite
         self.archived = archived
         self.trashed = trashed
@@ -231,6 +235,7 @@ public struct AssetQuery: Hashable, Sendable {
         add("q", q)
         add("type", type?.rawValue)
         add("albumId", albumId)
+        add("personId", personId)
         add("favorite", favorite.map(String.init))
         add("archived", archived.map(String.init))
         add("trashed", trashed.map(String.init))

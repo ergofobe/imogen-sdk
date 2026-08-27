@@ -192,6 +192,7 @@ pub struct AssetQuery {
     pub q: Option<String>,
     pub r#type: Option<AssetType>,
     pub album_id: Option<String>,
+    pub person_id: Option<String>,
     pub favorite: Option<bool>,
     pub archived: Option<bool>,
     /// When true, returns only trashed assets. Trashed assets are hidden otherwise.
@@ -231,6 +232,9 @@ impl AssetQuery {
         }
         if let Some(v) = &self.album_id {
             push("albumId", v.clone());
+        }
+        if let Some(v) = &self.person_id {
+            push("personId", v.clone());
         }
         if let Some(v) = self.favorite {
             push("favorite", v.to_string());
