@@ -1,6 +1,7 @@
 import { describe, expect, test } from 'bun:test'
 import {
   AssetFilter,
+  AssetQuery,
   AssetSelection,
   TimelineBucket,
   TimelineBucketQuery,
@@ -19,6 +20,44 @@ describe('AssetFilter', () => {
 
   test('rejects a bbox that is not four numbers', () => {
     expect(() => AssetFilter.parse({ bbox: '1,2,3' })).toThrow()
+  })
+})
+
+describe('AssetQuery', () => {
+  // Enumerated rather than spot-checked: AssetQuery is PageQuery + AssetFilter + sort/order,
+  // and nothing else in the suite parses it (it's a request shape, so the conformance
+  // fixture loop never touches it). A field dropped from AssetFilter.shape, or an
+  // .extend() reordered so one silently overwrites another, must fail here or it fails
+  // nowhere until a client's query string breaks in the field.
+  test('is exactly PageQuery + AssetFilter + sort/order, field for field', () => {
+    const expectedKeys = [
+      'cursor',
+      'limit',
+      'q',
+      'type',
+      'albumId',
+      'personId',
+      'favorite',
+      'archived',
+      'trashed',
+      'takenAfter',
+      'takenBefore',
+      'bbox',
+      'sort',
+      'order',
+    ].sort()
+    expect(Object.keys(AssetQuery.shape).sort()).toEqual(expectedKeys)
+  })
+
+  test('keeps the wire defaults every client depends on', () => {
+    const parsed = AssetQuery.parse({})
+    expect(parsed.limit).toBe(100)
+    expect(parsed.sort).toBe('capturedAt')
+    expect(parsed.order).toBe('desc')
+  })
+
+  test('still coerces a query-string boolean', () => {
+    expect(AssetQuery.parse({ favorite: 'true' }).favorite).toBe(true)
   })
 })
 
