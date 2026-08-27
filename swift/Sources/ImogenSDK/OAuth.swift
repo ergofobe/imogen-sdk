@@ -17,6 +17,25 @@ public struct PendingAuthorization: Hashable, Sendable {
     public let state: String
     public let redirectURI: String
     public let clientId: String
+
+    /// Public, because an application has to put one of these back together.
+    ///
+    /// The browser is another process, and the app that opened it can be jettisoned while
+    /// it is in front. So these fields are persisted before the redirect and rebuilt after
+    /// it — the alternative is losing the verifier and, with it, the sign-in.
+    public init(
+        authorizationURL: String,
+        codeVerifier: String,
+        state: String,
+        redirectURI: String,
+        clientId: String
+    ) {
+        self.authorizationURL = authorizationURL
+        self.codeVerifier = codeVerifier
+        self.state = state
+        self.redirectURI = redirectURI
+        self.clientId = clientId
+    }
 }
 
 public struct StoredTokens: Hashable, Sendable {

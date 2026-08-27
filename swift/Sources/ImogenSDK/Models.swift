@@ -247,6 +247,14 @@ public struct AssetQuery: Hashable, Sendable {
 public struct TimelineBucket: Codable, Hashable, Sendable {
     public var date: String
     public var count: Int
+
+    /// Public, unlike most of the models here, because a client builds these rather than
+    /// only decoding them: a timeline grid works out its own shape by adding to and taking
+    /// from the day counts as photographs arrive and are deleted.
+    public init(date: String, count: Int) {
+        self.date = date
+        self.count = count
+    }
 }
 
 public struct Timeline: Codable, Hashable, Sendable {
