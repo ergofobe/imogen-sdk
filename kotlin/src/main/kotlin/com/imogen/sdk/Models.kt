@@ -3,6 +3,8 @@
 package com.imogen.sdk
 
 import io.ktor.http.Url
+import kotlinx.serialization.EncodeDefault
+import kotlinx.serialization.ExperimentalSerializationApi
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
@@ -490,6 +492,15 @@ data class PairingClaimRequest(
     val clientId: String,
     val redirectUri: String,
     val codeChallenge: String,
+    /**
+     * Always sent, even though it always has the same value.
+     *
+     * [wireJson] drops defaults so that a patch carries only the fields it means to
+     * change — which silently removed this one from every claim, and the server, which
+     * requires it and offers no default of its own, refused all of them with a 400.
+     */
+    @OptIn(ExperimentalSerializationApi::class)
+    @EncodeDefault(EncodeDefault.Mode.ALWAYS)
     val codeChallengeMethod: String = "S256",
     /** Space-separated. Omit to take everything a paired device is allowed. */
     val scope: String? = null,
