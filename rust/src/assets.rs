@@ -3,7 +3,6 @@ use std::sync::Arc;
 
 use futures::stream::{self, StreamExt, TryStreamExt};
 use reqwest::Method;
-use serde_json::json;
 use tokio::io::{AsyncReadExt, AsyncSeekExt, AsyncWriteExt};
 
 use crate::error::{Error, Result};
@@ -173,32 +172,44 @@ impl Assets {
         Ok(())
     }
 
-    pub async fn trash(&self, asset_ids: &[String]) -> Result<AffectedCount> {
+    pub async fn trash(&self, selection: &AssetSelection) -> Result<AffectedCount> {
         self.http
             .request(
                 Method::POST,
                 "/api/v1/assets/trash",
-                RequestOptions::json(&json!({ "assetIds": asset_ids }))?,
+                RequestOptions::json(selection)?,
             )
             .await
     }
 
-    pub async fn restore(&self, asset_ids: &[String]) -> Result<AffectedCount> {
+    pub async fn restore(&self, selection: &AssetSelection) -> Result<AffectedCount> {
         self.http
             .request(
                 Method::POST,
                 "/api/v1/assets/restore",
-                RequestOptions::json(&json!({ "assetIds": asset_ids }))?,
+                RequestOptions::json(selection)?,
             )
             .await
     }
 
-    pub async fn timeline(&self) -> Result<Timeline> {
+    pub async fn timeline(&self, query: &TimelineQuery) -> Result<Timeline> {
         self.http
             .request(
                 Method::GET,
                 "/api/v1/assets/timeline",
-                RequestOptions::default(),
+                RequestOptions::query(query.to_pairs()),
+            )
+            .await
+    }
+
+    /// Every tile in one period, in one round trip, for a grid that lays itself out.
+    /// `query.limit` is left unset so the server's own default applies.
+    pub async fn timeline_bucket(&self, query: &TimelineBucketQuery) -> Result<TilePage> {
+        self.http
+            .request(
+                Method::GET,
+                "/api/v1/assets/timeline/bucket",
+                RequestOptions::query(query.to_pairs()),
             )
             .await
     }

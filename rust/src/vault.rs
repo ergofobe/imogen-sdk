@@ -78,22 +78,22 @@ impl Vault {
         Ok(page.items)
     }
 
-    pub async fn move_in(&self, asset_ids: &[String]) -> Result<MovedCount> {
+    pub async fn move_in(&self, selection: &AssetSelection) -> Result<MovedCount> {
         self.http
             .request(
                 Method::POST,
                 "/api/v1/vault/assets",
-                RequestOptions::json(&json!({ "assetIds": asset_ids }))?,
+                RequestOptions::json(selection)?,
             )
             .await
     }
 
-    pub async fn move_out(&self, asset_ids: &[String]) -> Result<MovedCount> {
+    pub async fn move_out(&self, selection: &AssetSelection) -> Result<MovedCount> {
         self.http
             .request(
                 Method::DELETE,
                 "/api/v1/vault/assets",
-                RequestOptions::json(&json!({ "assetIds": asset_ids }))?,
+                RequestOptions::json(selection)?,
             )
             .await
     }

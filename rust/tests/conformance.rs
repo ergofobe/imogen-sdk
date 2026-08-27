@@ -67,9 +67,10 @@ async fn invoke(client: &ImogenClient, key: &str, big_file: &Path) -> bool {
                 .await,
         ),
         "assets.unshare" => drop(client.assets.unshare("ASSET").await),
-        "assets.trash" => drop(client.assets.trash(&ids).await),
-        "assets.restore" => drop(client.assets.restore(&ids).await),
-        "assets.timeline" => drop(client.assets.timeline().await),
+        "assets.trash" => drop(client.assets.trash(&AssetSelection::ids(&ids)).await),
+        "assets.restore" => drop(client.assets.restore(&AssetSelection::ids(&ids)).await),
+        "assets.timeline" => drop(client.assets.timeline(&TimelineQuery::default()).await),
+        "assets.timelineBucket" => drop(client.assets.timeline_bucket(&Default::default()).await),
         "assets.stats" => drop(client.assets.stats().await),
         "assets.variant" => drop(client.assets.bytes("ASSET", AssetVariant::Thumbnail).await),
         "assets.download" => drop(
@@ -115,8 +116,18 @@ async fn invoke(client: &ImogenClient, key: &str, big_file: &Path) -> bool {
                 .await,
         ),
         "albums.remove" => drop(client.albums.remove("ALBUM").await),
-        "albums.addAssets" => drop(client.albums.add_assets("ALBUM", &ids).await),
-        "albums.removeAssets" => drop(client.albums.remove_assets("ALBUM", &ids).await),
+        "albums.addAssets" => drop(
+            client
+                .albums
+                .add_assets("ALBUM", &AssetSelection::ids(&ids))
+                .await,
+        ),
+        "albums.removeAssets" => drop(
+            client
+                .albums
+                .remove_assets("ALBUM", &AssetSelection::ids(&ids))
+                .await,
+        ),
         "albums.shareLink" => drop(client.albums.share_link("ALBUM").await),
         "albums.share" => drop(
             client
@@ -161,8 +172,8 @@ async fn invoke(client: &ImogenClient, key: &str, big_file: &Path) -> bool {
         "vault.unlock" => drop(client.vault.unlock("open sesame").await),
         "vault.lock" => drop(client.vault.lock().await),
         "vault.list" => drop(client.vault.list(200).await),
-        "vault.moveIn" => drop(client.vault.move_in(&ids).await),
-        "vault.moveOut" => drop(client.vault.move_out(&ids).await),
+        "vault.moveIn" => drop(client.vault.move_in(&AssetSelection::ids(&ids)).await),
+        "vault.moveOut" => drop(client.vault.move_out(&AssetSelection::ids(&ids)).await),
 
         "auth.config" => drop(client.auth.config().await),
         "auth.login" => drop(
@@ -412,6 +423,8 @@ fn models_decode_as_the_contract_says() {
     check_model::<VaultStatus>("vaultStatusLocked");
     check_model::<VaultStatus>("vaultStatusUnlocked");
     check_model::<Timeline>("timeline");
+    check_model::<TimelineBucket>("timelineBucket");
+    check_model::<TimelineTile>("timelineTile");
     check_model::<LibraryStats>("libraryStats");
     check_model::<UploadSession>("uploadSession");
     check_model::<AdminUser>("adminUser");

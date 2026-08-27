@@ -1,7 +1,6 @@
 use std::sync::Arc;
 
 use reqwest::Method;
-use serde_json::json;
 
 use crate::error::Result;
 use crate::http::{HttpClient, RequestOptions};
@@ -64,13 +63,13 @@ impl Albums {
     pub async fn add_assets(
         &self,
         album_id: &str,
-        asset_ids: &[String],
+        selection: &AssetSelection,
     ) -> Result<AlbumAssetsResult> {
         self.http
             .request(
                 Method::POST,
                 &format!("/api/v1/albums/{album_id}/assets"),
-                RequestOptions::json(&json!({ "assetIds": asset_ids }))?,
+                RequestOptions::json(selection)?,
             )
             .await
     }
@@ -78,13 +77,13 @@ impl Albums {
     pub async fn remove_assets(
         &self,
         album_id: &str,
-        asset_ids: &[String],
+        selection: &AssetSelection,
     ) -> Result<RemovedCount> {
         self.http
             .request(
                 Method::DELETE,
                 &format!("/api/v1/albums/{album_id}/assets"),
-                RequestOptions::json(&json!({ "assetIds": asset_ids }))?,
+                RequestOptions::json(selection)?,
             )
             .await
     }
