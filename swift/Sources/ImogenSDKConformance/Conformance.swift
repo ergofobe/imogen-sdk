@@ -82,6 +82,8 @@ enum Conformance {
             case "assets.trash": _ = try await client.assets.trash(ids)
             case "assets.restore": _ = try await client.assets.restore(ids)
             case "assets.timeline": _ = try await client.assets.timeline()
+            case "assets.timelineBucket":
+                _ = try await client.assets.timelineBucket(TimelineBucketQuery(period: "2024-06"))
             case "assets.stats": _ = try await client.assets.stats()
             case "assets.variant": _ = try await client.assets.data("ASSET", variant: .thumbnail)
             case "assets.download":
@@ -286,6 +288,8 @@ enum Conformance {
         try check(VaultStatus.self, "vaultStatusLocked")
         try check(VaultStatus.self, "vaultStatusUnlocked")
         try check(Timeline.self, "timeline")
+        try check(TimelineBucket.self, "timelineBucket")
+        try check(TimelineTile.self, "timelineTile")
         try check(LibraryStats.self, "libraryStats")
         try check(UploadSession.self, "uploadSession")
         try check(AdminUser.self, "adminUser")

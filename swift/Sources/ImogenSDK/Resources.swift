@@ -93,26 +93,45 @@ public struct Assets: Sendable {
         try await http.requestVoid("DELETE", "/api/v1/assets/\(assetId)/share")
     }
 
+    /// The id list is the older, shorter way of saying the same thing.
     @discardableResult
     public func trash(_ assetIds: [String]) async throws -> Int {
+        try await trash(AssetSelection(assetIds: assetIds))
+    }
+
+    @discardableResult
+    public func trash(_ selection: AssetSelection) async throws -> Int {
         let result: AffectedCount = try await http.request(
             "POST", "/api/v1/assets/trash",
-            RequestOptions(body: try http.encode(["assetIds": assetIds]), headers: jsonHeaders)
+            RequestOptions(body: try http.encode(selection), headers: jsonHeaders)
         )
         return result.count
     }
 
     @discardableResult
     public func restore(_ assetIds: [String]) async throws -> Int {
+        try await restore(AssetSelection(assetIds: assetIds))
+    }
+
+    @discardableResult
+    public func restore(_ selection: AssetSelection) async throws -> Int {
         let result: AffectedCount = try await http.request(
             "POST", "/api/v1/assets/restore",
-            RequestOptions(body: try http.encode(["assetIds": assetIds]), headers: jsonHeaders)
+            RequestOptions(body: try http.encode(selection), headers: jsonHeaders)
         )
         return result.count
     }
 
-    public func timeline() async throws -> Timeline {
-        try await http.request("GET", "/api/v1/assets/timeline")
+    public func timeline(_ query: TimelineQuery = TimelineQuery()) async throws -> Timeline {
+        try await http.request(
+            "GET", "/api/v1/assets/timeline", RequestOptions(query: query.queryItems))
+    }
+
+    /// Every tile in one period, in one round trip, for a grid that lays itself out.
+    /// `limit` defaults server-side, so only `period` is required here.
+    public func timelineBucket(_ query: TimelineBucketQuery) async throws -> TilePage {
+        try await http.request(
+            "GET", "/api/v1/assets/timeline/bucket", RequestOptions(query: query.queryItems))
     }
 
     public func stats() async throws -> LibraryStats {
@@ -317,17 +336,27 @@ public struct Albums: Sendable {
 
     @discardableResult
     public func addAssets(_ albumId: String, _ assetIds: [String]) async throws -> AlbumAssetsResult {
+        try await addAssets(albumId, AssetSelection(assetIds: assetIds))
+    }
+
+    @discardableResult
+    public func addAssets(_ albumId: String, _ selection: AssetSelection) async throws -> AlbumAssetsResult {
         try await http.request(
             "POST", "/api/v1/albums/\(albumId)/assets",
-            RequestOptions(body: try http.encode(["assetIds": assetIds]), headers: jsonHeaders)
+            RequestOptions(body: try http.encode(selection), headers: jsonHeaders)
         )
     }
 
     @discardableResult
     public func removeAssets(_ albumId: String, _ assetIds: [String]) async throws -> Int {
+        try await removeAssets(albumId, AssetSelection(assetIds: assetIds))
+    }
+
+    @discardableResult
+    public func removeAssets(_ albumId: String, _ selection: AssetSelection) async throws -> Int {
         let result: RemovedCount = try await http.request(
             "DELETE", "/api/v1/albums/\(albumId)/assets",
-            RequestOptions(body: try http.encode(["assetIds": assetIds]), headers: jsonHeaders)
+            RequestOptions(body: try http.encode(selection), headers: jsonHeaders)
         )
         return result.removed
     }
@@ -469,18 +498,28 @@ public struct Vault: Sendable {
 
     @discardableResult
     public func moveIn(_ assetIds: [String]) async throws -> Int {
+        try await moveIn(AssetSelection(assetIds: assetIds))
+    }
+
+    @discardableResult
+    public func moveIn(_ selection: AssetSelection) async throws -> Int {
         let result: MovedCount = try await http.request(
             "POST", "/api/v1/vault/assets",
-            RequestOptions(body: try http.encode(["assetIds": assetIds]), headers: jsonHeaders)
+            RequestOptions(body: try http.encode(selection), headers: jsonHeaders)
         )
         return result.moved
     }
 
     @discardableResult
     public func moveOut(_ assetIds: [String]) async throws -> Int {
+        try await moveOut(AssetSelection(assetIds: assetIds))
+    }
+
+    @discardableResult
+    public func moveOut(_ selection: AssetSelection) async throws -> Int {
         let result: MovedCount = try await http.request(
             "DELETE", "/api/v1/vault/assets",
-            RequestOptions(body: try http.encode(["assetIds": assetIds]), headers: jsonHeaders)
+            RequestOptions(body: try http.encode(selection), headers: jsonHeaders)
         )
         return result.moved
     }
