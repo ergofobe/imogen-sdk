@@ -31,6 +31,15 @@ pub trait RefreshToken: Send + Sync {
     fn refresh(&self) -> BoxFuture<'_, Option<String>>;
 }
 
+/// How long to wait for a connection before giving up on one address and moving on.
+///
+/// reqwest leaves this unset, which means the operating system's own limit — over a
+/// minute on macOS. A host with a AAAA record on a network where IPv6 silently blackholes
+/// then hangs for that long, and the retry policy below multiplies it. Ten seconds is far
+/// longer than any working connection needs and short enough that a dead address is
+/// abandoned while somebody is still watching.
+pub const DEFAULT_CONNECT_TIMEOUT: Duration = Duration::from_secs(10);
+
 pub struct ClientOptions {
     /// Where imogen lives, e.g. `https://photos.example.com`.
     pub base_url: String,
@@ -38,6 +47,8 @@ pub struct ClientOptions {
     pub on_unauthorized: Option<Arc<dyn RefreshToken>>,
     /// How many times to retry a request that failed for a transient reason.
     pub max_retries: u32,
+    /// How long to wait for a connection. `None` leaves it to the operating system.
+    pub connect_timeout: Option<Duration>,
     pub http: Option<reqwest::Client>,
 }
 
@@ -48,6 +59,7 @@ impl ClientOptions {
             token: None,
             on_unauthorized: None,
             max_retries: 2,
+            connect_timeout: Some(DEFAULT_CONNECT_TIMEOUT),
             http: None,
         }
     }
@@ -69,6 +81,13 @@ impl ClientOptions {
 
     pub fn max_retries(mut self, retries: u32) -> Self {
         self.max_retries = retries;
+        self
+    }
+
+    /// Overrides the connection timeout. `None` waits as long as the operating system
+    /// does, which on a stalled address can be over a minute.
+    pub fn connect_timeout(mut self, timeout: Option<Duration>) -> Self {
+        self.connect_timeout = timeout;
         self
     }
 
@@ -117,9 +136,14 @@ pub struct HttpClient {
 
 impl HttpClient {
     pub fn new(options: ClientOptions) -> Self {
+        // A client supplied by the caller is used exactly as given: they have already
+        // decided how it should behave.
+        let client = options
+            .http
+            .unwrap_or_else(|| build_client(options.connect_timeout));
         Self {
             base_url: options.base_url.trim_end_matches('/').to_string(),
-            client: options.http.unwrap_or_default(),
+            client,
             token: options.token,
             on_unauthorized: options.on_unauthorized,
             max_retries: options.max_retries,
@@ -276,6 +300,16 @@ impl HttpClient {
 
         Ok(request.headers(headers).send().await?)
     }
+}
+
+/// The default transport. Falls back to a plain client if the builder refuses, so a
+/// timeout setting can never be the reason a client cannot be constructed at all.
+pub(crate) fn build_client(connect_timeout: Option<Duration>) -> reqwest::Client {
+    let mut builder = reqwest::Client::builder();
+    if let Some(timeout) = connect_timeout {
+        builder = builder.connect_timeout(timeout);
+    }
+    builder.build().unwrap_or_default()
 }
 
 /// Exponential backoff with full jitter, so a fleet of phones retrying after an outage

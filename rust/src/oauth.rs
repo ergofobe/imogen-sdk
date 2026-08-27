@@ -59,7 +59,10 @@ pub struct OAuthClient {
 
 impl OAuthClient {
     pub fn new(base_url: impl Into<String>) -> Self {
-        Self::with_client(base_url, reqwest::Client::new())
+        Self::with_client(
+            base_url,
+            crate::http::build_client(Some(crate::http::DEFAULT_CONNECT_TIMEOUT)),
+        )
     }
 
     pub fn with_client(base_url: impl Into<String>, http: reqwest::Client) -> Self {
