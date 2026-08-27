@@ -1,5 +1,10 @@
-import type { Asset, AssetSelection } from '@imogen/shared'
-import { selectionBody } from './assets.ts'
+import type {
+  Asset,
+  AssetSelection,
+  TimelineBucket,
+  TimelineBucketQuery,
+} from '@imogen/shared'
+import { selectionBody, type TilePage } from './assets.ts'
 import type { HttpClient } from './http.ts'
 
 export type VaultStatus = {
@@ -42,6 +47,23 @@ export class Vault {
       query: { limit },
     })
     return page.items
+  }
+
+  /**
+   * One row per day in the vault, for sizing the grid before any tile arrives.
+   *
+   * The vault has a spine of its own because it cannot have a filter: `AssetFilter`
+   * deliberately cannot express "inside the vault", so the scoping is done server-side
+   * behind the unlock rather than by anything the caller sends.
+   */
+  timeline(query: { covers?: boolean } = {}): Promise<{ buckets: TimelineBucket[] }> {
+    return this.http.request('GET', '/api/v1/vault/timeline', { query })
+  }
+
+  timelineBucket(
+    query: Pick<TimelineBucketQuery, 'period'> & { cursor?: string; limit?: number },
+  ): Promise<TilePage> {
+    return this.http.request<TilePage>('GET', '/api/v1/vault/timeline/bucket', { query })
   }
 
   moveIn(selection: string[] | AssetSelection): Promise<{ moved: number }> {
