@@ -192,6 +192,7 @@ pub struct AssetQuery {
     pub q: Option<String>,
     pub r#type: Option<AssetType>,
     pub album_id: Option<String>,
+    pub person_id: Option<String>,
     pub favorite: Option<bool>,
     pub archived: Option<bool>,
     /// When true, returns only trashed assets. Trashed assets are hidden otherwise.
@@ -231,6 +232,9 @@ impl AssetQuery {
         }
         if let Some(v) = &self.album_id {
             push("albumId", v.clone());
+        }
+        if let Some(v) = &self.person_id {
+            push("personId", v.clone());
         }
         if let Some(v) = self.favorite {
             push("favorite", v.to_string());
@@ -279,12 +283,203 @@ impl AssetQuery {
 pub struct TimelineBucket {
     pub date: String,
     pub count: u64,
+    /// The newest ready asset in the bucket, for an overview card; `None` unless covers were requested.
+    #[serde(default)]
+    pub cover_asset_id: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Timeline {
     pub buckets: Vec<TimelineBucket>,
+}
+
+/// The filters every listing shares, so the timeline aggregate, the bucket endpoint, and
+/// a by-query selection cannot drift from what `GET /assets` accepts.
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AssetFilter {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub q: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub r#type: Option<AssetType>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub album_id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub person_id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub favorite: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub archived: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub trashed: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub taken_after: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub taken_before: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub bbox: Option<String>,
+}
+
+impl AssetFilter {
+    /// Flattened to query pairs the same way [`AssetQuery::to_pairs`] is, so the two
+    /// never disagree about how a filter reaches the wire.
+    pub fn to_pairs(&self) -> Vec<(String, String)> {
+        let mut pairs: Vec<(String, String)> = Vec::new();
+        let mut push = |key: &str, value: String| pairs.push((key.to_string(), value));
+
+        if let Some(v) = &self.q {
+            push("q", v.clone());
+        }
+        if let Some(v) = self.r#type {
+            push(
+                "type",
+                match v {
+                    AssetType::Image => "image".into(),
+                    AssetType::Video => "video".into(),
+                },
+            );
+        }
+        if let Some(v) = &self.album_id {
+            push("albumId", v.clone());
+        }
+        if let Some(v) = &self.person_id {
+            push("personId", v.clone());
+        }
+        if let Some(v) = self.favorite {
+            push("favorite", v.to_string());
+        }
+        if let Some(v) = self.archived {
+            push("archived", v.to_string());
+        }
+        if let Some(v) = self.trashed {
+            push("trashed", v.to_string());
+        }
+        if let Some(v) = &self.taken_after {
+            push("takenAfter", v.clone());
+        }
+        if let Some(v) = &self.taken_before {
+            push("takenBefore", v.clone());
+        }
+        if let Some(v) = &self.bbox {
+            push("bbox", v.clone());
+        }
+        pairs
+    }
+}
+
+/// The filter behind `GET /assets/timeline`, plus whether to resolve a cover photo per bucket.
+#[derive(Debug, Clone, Default, PartialEq)]
+pub struct TimelineQuery {
+    pub covers: Option<bool>,
+    pub filter: AssetFilter,
+}
+
+impl TimelineQuery {
+    pub fn to_pairs(&self) -> Vec<(String, String)> {
+        let mut pairs = self.filter.to_pairs();
+        if let Some(v) = self.covers {
+            pairs.push(("covers".to_string(), v.to_string()));
+        }
+        pairs
+    }
+}
+
+/// Everything a grid tile draws, and nothing else — far lighter than a full [`Asset`] over
+/// a heavy month of scrubbing.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TimelineTile {
+    pub id: String,
+    pub captured_at: String,
+    pub width: Option<u32>,
+    pub height: Option<u32>,
+    pub r#type: AssetType,
+    pub status: AssetStatus,
+    pub favorite: bool,
+    pub duration: Option<f64>,
+    pub placeholder_color: Option<String>,
+    pub live_photo_video_id: Option<String>,
+}
+
+/// One page of tiles, the same shape as [`AssetPage`] but for the lighter timeline type.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TilePage {
+    pub items: Vec<TimelineTile>,
+    pub next_cursor: Option<String>,
+    pub total: Option<u64>,
+}
+
+/// The query behind one page of `GET /assets/timeline/bucket`; `limit` is left unset so
+/// the server's default of 5000 applies rather than a client-side guess.
+#[derive(Debug, Clone, Default, PartialEq)]
+pub struct TimelineBucketQuery {
+    pub period: String,
+    pub cursor: Option<String>,
+    pub limit: Option<u32>,
+    pub filter: AssetFilter,
+}
+
+impl TimelineBucketQuery {
+    pub fn to_pairs(&self) -> Vec<(String, String)> {
+        let mut pairs = vec![("period".to_string(), self.period.clone())];
+        if let Some(v) = &self.cursor {
+            pairs.push(("cursor".to_string(), v.clone()));
+        }
+        if let Some(v) = self.limit {
+            pairs.push(("limit".to_string(), v.to_string()));
+        }
+        pairs.extend(self.filter.to_pairs());
+        pairs
+    }
+}
+
+/// What a bulk mutation acts on: an explicit id list, or the filter a "select all" reduces
+/// to rather than a hundred thousand ids in a request body.
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AssetSelection {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub asset_ids: Option<Vec<String>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub query: Option<AssetFilter>,
+    /// Capped deliberately: past this, an interface should not be offering a selection.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub except: Option<Vec<String>>,
+}
+
+impl AssetSelection {
+    /// The older, shorter way of saying the same thing: a plain id list.
+    pub fn ids(asset_ids: &[String]) -> Self {
+        Self {
+            asset_ids: Some(asset_ids.to_vec()),
+            ..Default::default()
+        }
+    }
+
+    /// Why this selection cannot be sent, or `Ok(())` when it can. Every method that
+    /// sends one checks it first, so a client learns of a contradictory selection here
+    /// rather than from a 400 after the request has gone.
+    pub fn validate(&self) -> crate::error::Result<()> {
+        if self.asset_ids.is_none() == self.query.is_none() {
+            return Err(crate::error::Error::Invalid(
+                "Provide exactly one of assetIds or query".to_string(),
+            ));
+        }
+        // `except` narrows a filter; beside an explicit list it is a contradiction, and
+        // the server's id branch never reads it — so honouring the request would act on
+        // the very photographs the caller excluded. Rejecting matches the cap rule: a
+        // destructive action silently narrowed is undetectable until somebody goes
+        // looking for a picture that is no longer there.
+        if self.asset_ids.is_some() && self.except.is_some() {
+            return Err(crate::error::Error::Invalid(
+                "except narrows a query selection only; with assetIds, leave the unwanted ids out of the list"
+                    .to_string(),
+            ));
+        }
+        Ok(())
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]

@@ -33,6 +33,7 @@ from .models import (
     Asset,
     AssetPage,
     AssetQuery,
+    AssetSelection,
     AssetUpdate,
     AssetUploadMetadata,
     AssetUploadResult,
@@ -61,7 +62,10 @@ from .models import (
     ShareLinkCreate,
     SignupRequest,
     StorageReport,
+    TilePage,
     Timeline,
+    TimelineBucketQuery,
+    TimelineQuery,
     UploadSession,
     UploadSessionCreate,
     User,
@@ -99,6 +103,21 @@ class BulkUploadResult:
     path: Path
     result: AssetUploadResult | None = None
     error: Exception | None = None
+
+
+def _selection_body(selection: Iterable[str] | AssetSelection) -> dict[str, Any]:
+    """The id list is the older, shorter way of saying the same thing.
+
+    A selection built the wrong way is refused here rather than at the server, because
+    every one of these calls is destructive or close to it, and by the time a 400 comes
+    back the request has already been sent.
+    """
+    if isinstance(selection, AssetSelection):
+        problem = selection.problem()
+        if problem:
+            raise ValueError(problem)
+        return as_json(selection) or {}
+    return as_json(AssetSelection(asset_ids=list(selection))) or {}
 
 
 @dataclass
@@ -147,20 +166,34 @@ class Assets(_Resource):
     async def unshare(self, asset_id: str) -> None:
         await self.http.request("DELETE", f"/api/v1/assets/{asset_id}/share")
 
-    async def trash(self, asset_ids: Iterable[str]) -> int:
+    async def trash(self, selection: Iterable[str] | AssetSelection) -> int:
         body = await self.http.request(
-            "POST", "/api/v1/assets/trash", json={"assetIds": list(asset_ids)}
+            "POST", "/api/v1/assets/trash", json=_selection_body(selection)
         )
         return int(body["count"])
 
-    async def restore(self, asset_ids: Iterable[str]) -> int:
+    async def restore(self, selection: Iterable[str] | AssetSelection) -> int:
         body = await self.http.request(
-            "POST", "/api/v1/assets/restore", json={"assetIds": list(asset_ids)}
+            "POST", "/api/v1/assets/restore", json=_selection_body(selection)
         )
         return int(body["count"])
 
-    async def timeline(self) -> Timeline:
-        return Timeline.model_validate(await self.http.request("GET", "/api/v1/assets/timeline"))
+    async def timeline(self, query: TimelineQuery | None = None) -> Timeline:
+        params = (query or TimelineQuery()).to_params()
+        return Timeline.model_validate(
+            await self.http.request("GET", "/api/v1/assets/timeline", params=params)
+        )
+
+    async def timeline_bucket(self, query: TimelineBucketQuery) -> TilePage:
+        """Every tile in one period, in one round trip, for a grid that lays itself out.
+
+        ``limit`` defaults server-side, so a caller need only supply ``period``.
+        """
+        return TilePage.model_validate(
+            await self.http.request(
+                "GET", "/api/v1/assets/timeline/bucket", params=query.to_params()
+            )
+        )
 
     async def stats(self) -> LibraryStats:
         return LibraryStats.model_validate(await self.http.request("GET", "/api/v1/assets/stats"))
@@ -327,20 +360,22 @@ class Albums(_Resource):
     async def remove(self, album_id: str) -> None:
         await self.http.request("DELETE", f"/api/v1/albums/{album_id}")
 
-    async def add_assets(self, album_id: str, asset_ids: Iterable[str]) -> AlbumAssetsResult:
+    async def add_assets(
+        self, album_id: str, selection: Iterable[str] | AssetSelection
+    ) -> AlbumAssetsResult:
         return AlbumAssetsResult.model_validate(
             await self.http.request(
                 "POST",
                 f"/api/v1/albums/{album_id}/assets",
-                json={"assetIds": list(asset_ids)},
+                json=_selection_body(selection),
             )
         )
 
-    async def remove_assets(self, album_id: str, asset_ids: Iterable[str]) -> int:
+    async def remove_assets(self, album_id: str, selection: Iterable[str] | AssetSelection) -> int:
         body = await self.http.request(
             "DELETE",
             f"/api/v1/albums/{album_id}/assets",
-            json={"assetIds": list(asset_ids)},
+            json=_selection_body(selection),
         )
         return int(body["removed"])
 
@@ -476,19 +511,62 @@ class Vault(_Resource):
     async def lock(self) -> None:
         await self.http.request("POST", "/api/v1/vault/lock")
 
-    async def list(self, limit: int = 200) -> list[Asset]:
-        body = await self.http.request("GET", "/api/v1/vault/assets", params={"limit": limit})
-        return [Asset.model_validate(item) for item in body["items"]]
+    async def list(self, limit: int = 200) -> AssetPage:
+        """A sample of the vault, newest first, and how big the vault actually is.
 
-    async def move_in(self, asset_ids: Iterable[str]) -> int:
+        The ordinary :class:`AssetPage` rather than a bare list, because the server
+        answers ``pageOf(Asset)`` here as it does everywhere else. This endpoint is
+        capped, and the cap used to be invisible: two hundred photographs with no cursor
+        and no count reads as "that is all of them", which for a larger vault was simply
+        untrue. ``next_cursor`` is always ``None`` -- this endpoint does not page -- and
+        ``total`` is what makes the cap visible instead of silent. A caller that wants the
+        whole vault wants :meth:`timeline` and :meth:`timeline_bucket`.
+        """
+        return AssetPage.model_validate(
+            await self.http.request("GET", "/api/v1/vault/assets", params={"limit": limit})
+        )
+
+    async def timeline(self, covers: bool | None = None) -> Timeline:
+        """One row per day in the vault, for sizing the grid before any tile arrives.
+
+        The vault has a spine of its own because it cannot have a filter:
+        :class:`AssetFilter` deliberately cannot express "inside the vault", so the
+        scoping is done server-side behind the unlock rather than by anything the caller
+        sends. ``covers`` is the only parameter the route reads, so it is the only one
+        this takes.
+        """
+        params = {} if covers is None else {"covers": str(covers).lower()}
+        return Timeline.model_validate(
+            await self.http.request("GET", "/api/v1/vault/timeline", params=params)
+        )
+
+    async def timeline_bucket(
+        self, period: str, cursor: str | None = None, limit: int | None = None
+    ) -> TilePage:
+        """Every tile in one period of the vault, in one round trip.
+
+        ``period``, ``cursor`` and ``limit`` and nothing else: a filter this accepted
+        would be a filter that could widen what the vault hands back. ``limit`` left as
+        ``None`` takes the server's default rather than a number this client shipped with.
+        """
+        params: dict[str, Any] = {"period": period}
+        if cursor is not None:
+            params["cursor"] = cursor
+        if limit is not None:
+            params["limit"] = limit
+        return TilePage.model_validate(
+            await self.http.request("GET", "/api/v1/vault/timeline/bucket", params=params)
+        )
+
+    async def move_in(self, selection: Iterable[str] | AssetSelection) -> int:
         body = await self.http.request(
-            "POST", "/api/v1/vault/assets", json={"assetIds": list(asset_ids)}
+            "POST", "/api/v1/vault/assets", json=_selection_body(selection)
         )
         return int(body["moved"])
 
-    async def move_out(self, asset_ids: Iterable[str]) -> int:
+    async def move_out(self, selection: Iterable[str] | AssetSelection) -> int:
         body = await self.http.request(
-            "DELETE", "/api/v1/vault/assets", json={"assetIds": list(asset_ids)}
+            "DELETE", "/api/v1/vault/assets", json=_selection_body(selection)
         )
         return int(body["moved"])
 

@@ -26,6 +26,13 @@ pub enum Error {
     #[error("invalid URL: {0}")]
     Url(#[from] url::ParseError),
 
+    /// Refused before it was sent: the contract forbids the shape of the request.
+    ///
+    /// A destructive call whose selection contradicts itself is caught here rather than
+    /// at the server, because by the time a 400 comes back the request has already gone.
+    #[error("{0}")]
+    Invalid(String),
+
     #[error("{0}")]
     Oauth(String),
 

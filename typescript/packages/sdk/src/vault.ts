@@ -1,4 +1,5 @@
-import type { Asset } from '@imogen/shared'
+import type { AssetSelection, TimelineBucket, TimelineBucketQuery } from '@imogen/shared'
+import { type AssetPage, selectionBody, type TilePage } from './assets.ts'
 import type { HttpClient } from './http.ts'
 
 export type VaultStatus = {
@@ -36,18 +37,51 @@ export class Vault {
     return this.http.request<void>('POST', '/api/v1/vault/lock')
   }
 
-  async list(limit = 200): Promise<Asset[]> {
-    const page = await this.http.request<{ items: Asset[] }>('GET', '/api/v1/vault/assets', {
-      query: { limit },
-    })
-    return page.items
+  /**
+   * A sample of the vault, newest first, and how big the vault actually is.
+   *
+   * `total` rather than just the rows, because this endpoint is capped and the cap used to
+   * be invisible: it answered two hundred photographs with no cursor and no count, which
+   * reads as "that is all of them" and for a larger vault simply was not true. A caller
+   * that wants the whole thing wants `timeline` and `timelineBucket`; this is for anything
+   * that wants a handful of recent rows without laying out a grid, and `total` is what lets
+   * it know that is what it got.
+   *
+   * The ordinary `AssetPage` rather than a shape of its own, because the server answers
+   * `pageOf(Asset)` here like everywhere else. `nextCursor` is always null: this endpoint
+   * does not page, which is exactly what `total` beside a null cursor is there to say.
+   */
+  list(limit = 200): Promise<AssetPage> {
+    return this.http.request<AssetPage>('GET', '/api/v1/vault/assets', { query: { limit } })
   }
 
-  moveIn(assetIds: string[]): Promise<{ moved: number }> {
-    return this.http.request('POST', '/api/v1/vault/assets', { body: { assetIds } })
+  /**
+   * One row per day in the vault, for sizing the grid before any tile arrives.
+   *
+   * The vault has a spine of its own because it cannot have a filter: `AssetFilter`
+   * deliberately cannot express "inside the vault", so the scoping is done server-side
+   * behind the unlock rather than by anything the caller sends.
+   */
+  timeline(query: { covers?: boolean } = {}): Promise<{ buckets: TimelineBucket[] }> {
+    return this.http.request('GET', '/api/v1/vault/timeline', { query })
   }
 
-  moveOut(assetIds: string[]): Promise<{ moved: number }> {
-    return this.http.request('DELETE', '/api/v1/vault/assets', { body: { assetIds } })
+  /**
+   * Every tile in one period of the vault. `period`, `cursor` and `limit` only — the
+   * route parses nothing else, and a filter it accepted would be a filter that could
+   * widen what the vault hands back.
+   */
+  timelineBucket(
+    query: Pick<TimelineBucketQuery, 'period'> & { cursor?: string; limit?: number },
+  ): Promise<TilePage> {
+    return this.http.request<TilePage>('GET', '/api/v1/vault/timeline/bucket', { query })
+  }
+
+  moveIn(selection: string[] | AssetSelection): Promise<{ moved: number }> {
+    return this.http.request('POST', '/api/v1/vault/assets', { body: selectionBody(selection) })
+  }
+
+  moveOut(selection: string[] | AssetSelection): Promise<{ moved: number }> {
+    return this.http.request('DELETE', '/api/v1/vault/assets', { body: selectionBody(selection) })
   }
 }

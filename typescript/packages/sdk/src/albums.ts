@@ -4,9 +4,11 @@ import type {
   AlbumCreate,
   AlbumUpdate,
   AlbumWithAssets,
+  AssetSelection,
   ShareLink,
   ShareLinkCreate,
 } from '@imogen/shared'
+import { selectionBody } from './assets.ts'
 import type { HttpClient } from './http.ts'
 
 export class Albums {
@@ -33,14 +35,19 @@ export class Albums {
     return this.http.request<void>('DELETE', `/api/v1/albums/${albumId}`)
   }
 
-  addAssets(albumId: string, assetIds: string[]): Promise<AlbumAssetsResult> {
+  addAssets(albumId: string, selection: string[] | AssetSelection): Promise<AlbumAssetsResult> {
     return this.http.request<AlbumAssetsResult>('POST', `/api/v1/albums/${albumId}/assets`, {
-      body: { assetIds },
+      body: selectionBody(selection),
     })
   }
 
-  removeAssets(albumId: string, assetIds: string[]): Promise<{ removed: number }> {
-    return this.http.request('DELETE', `/api/v1/albums/${albumId}/assets`, { body: { assetIds } })
+  removeAssets(
+    albumId: string,
+    selection: string[] | AssetSelection,
+  ): Promise<{ removed: number }> {
+    return this.http.request('DELETE', `/api/v1/albums/${albumId}/assets`, {
+      body: selectionBody(selection),
+    })
   }
 
   /** The live public link for this album, or null. */

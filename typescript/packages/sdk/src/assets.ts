@@ -1,6 +1,7 @@
 import type {
   Asset,
   AssetQuery,
+  AssetSelection,
   AssetUpdate,
   AssetUploadMetadata,
   AssetUploadResult,
@@ -9,9 +10,13 @@ import type {
   ShareLink,
   ShareLinkCreate,
   TimelineBucket,
+  TimelineBucketQuery,
+  TimelineQuery,
+  TimelineTile,
   UploadSession,
 } from '@imogen/shared'
 import {
+  assetSelectionProblem,
   BULK_UPLOAD_CONCURRENCY,
   RESUMABLE_THRESHOLD_BYTES,
   UPLOAD_CHUNK_BYTES,
@@ -19,6 +24,21 @@ import {
 import type { HttpClient } from './http.ts'
 
 export type AssetPage = { items: Asset[]; nextCursor: string | null; total: number | null }
+export type TilePage = { items: TimelineTile[]; nextCursor: string | null; total: number | null }
+
+/**
+ * The id list is the older, shorter way of saying the same thing.
+ *
+ * A selection built the wrong way is refused here rather than at the server, because
+ * every one of these calls is destructive or close to it, and by the time a 400 comes
+ * back the request has already been sent.
+ */
+export function selectionBody(selection: string[] | AssetSelection): AssetSelection {
+  if (Array.isArray(selection)) return { assetIds: selection }
+  const problem = assetSelectionProblem(selection)
+  if (problem) throw new TypeError(problem)
+  return selection
+}
 
 export type UploadProgress = {
   /** Bytes transferred so far for this file. */
@@ -86,16 +106,26 @@ export class Assets {
     return this.http.request<Asset>('PATCH', `/api/v1/assets/${assetId}`, { body: patch })
   }
 
-  trash(assetIds: string[]): Promise<{ count: number }> {
-    return this.http.request('POST', '/api/v1/assets/trash', { body: { assetIds } })
+  trash(selection: string[] | AssetSelection): Promise<{ count: number }> {
+    return this.http.request('POST', '/api/v1/assets/trash', { body: selectionBody(selection) })
   }
 
-  restore(assetIds: string[]): Promise<{ count: number }> {
-    return this.http.request('POST', '/api/v1/assets/restore', { body: { assetIds } })
+  restore(selection: string[] | AssetSelection): Promise<{ count: number }> {
+    return this.http.request('POST', '/api/v1/assets/restore', { body: selectionBody(selection) })
   }
 
-  timeline(): Promise<{ buckets: TimelineBucket[] }> {
-    return this.http.request('GET', '/api/v1/assets/timeline')
+  timeline(query: Partial<TimelineQuery> = {}): Promise<{ buckets: TimelineBucket[] }> {
+    return this.http.request('GET', '/api/v1/assets/timeline', { query })
+  }
+
+  /**
+   * Every tile in one period, in one round trip, for a grid that lays itself out.
+   * `limit` defaults server-side, so only `period` is required here.
+   */
+  timelineBucket(
+    query: Pick<TimelineBucketQuery, 'period'> & Partial<TimelineBucketQuery>,
+  ): Promise<TilePage> {
+    return this.http.request<TilePage>('GET', '/api/v1/assets/timeline/bucket', { query })
   }
 
   stats(): Promise<LibraryStats> {

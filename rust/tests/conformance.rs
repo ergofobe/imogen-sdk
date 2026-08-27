@@ -67,9 +67,10 @@ async fn invoke(client: &ImogenClient, key: &str, big_file: &Path) -> bool {
                 .await,
         ),
         "assets.unshare" => drop(client.assets.unshare("ASSET").await),
-        "assets.trash" => drop(client.assets.trash(&ids).await),
-        "assets.restore" => drop(client.assets.restore(&ids).await),
-        "assets.timeline" => drop(client.assets.timeline().await),
+        "assets.trash" => drop(client.assets.trash(&AssetSelection::ids(&ids)).await),
+        "assets.restore" => drop(client.assets.restore(&AssetSelection::ids(&ids)).await),
+        "assets.timeline" => drop(client.assets.timeline(&TimelineQuery::default()).await),
+        "assets.timelineBucket" => drop(client.assets.timeline_bucket(&Default::default()).await),
         "assets.stats" => drop(client.assets.stats().await),
         "assets.variant" => drop(client.assets.bytes("ASSET", AssetVariant::Thumbnail).await),
         "assets.download" => drop(
@@ -115,8 +116,18 @@ async fn invoke(client: &ImogenClient, key: &str, big_file: &Path) -> bool {
                 .await,
         ),
         "albums.remove" => drop(client.albums.remove("ALBUM").await),
-        "albums.addAssets" => drop(client.albums.add_assets("ALBUM", &ids).await),
-        "albums.removeAssets" => drop(client.albums.remove_assets("ALBUM", &ids).await),
+        "albums.addAssets" => drop(
+            client
+                .albums
+                .add_assets("ALBUM", &AssetSelection::ids(&ids))
+                .await,
+        ),
+        "albums.removeAssets" => drop(
+            client
+                .albums
+                .remove_assets("ALBUM", &AssetSelection::ids(&ids))
+                .await,
+        ),
         "albums.shareLink" => drop(client.albums.share_link("ALBUM").await),
         "albums.share" => drop(
             client
@@ -161,8 +172,10 @@ async fn invoke(client: &ImogenClient, key: &str, big_file: &Path) -> bool {
         "vault.unlock" => drop(client.vault.unlock("open sesame").await),
         "vault.lock" => drop(client.vault.lock().await),
         "vault.list" => drop(client.vault.list(200).await),
-        "vault.moveIn" => drop(client.vault.move_in(&ids).await),
-        "vault.moveOut" => drop(client.vault.move_out(&ids).await),
+        "vault.timeline" => drop(client.vault.timeline(None).await),
+        "vault.timelineBucket" => drop(client.vault.timeline_bucket("2024-06", None, None).await),
+        "vault.moveIn" => drop(client.vault.move_in(&AssetSelection::ids(&ids)).await),
+        "vault.moveOut" => drop(client.vault.move_out(&AssetSelection::ids(&ids)).await),
 
         "auth.config" => drop(client.auth.config().await),
         "auth.login" => drop(
@@ -412,6 +425,8 @@ fn models_decode_as_the_contract_says() {
     check_model::<VaultStatus>("vaultStatusLocked");
     check_model::<VaultStatus>("vaultStatusUnlocked");
     check_model::<Timeline>("timeline");
+    check_model::<TimelineBucket>("timelineBucket");
+    check_model::<TimelineTile>("timelineTile");
     check_model::<LibraryStats>("libraryStats");
     check_model::<UploadSession>("uploadSession");
     check_model::<AdminUser>("adminUser");
@@ -591,6 +606,59 @@ async fn builds_image_urls_without_a_request() {
         client.assets.download_url("A1"),
         "https://photos.example.test/api/v1/assets/A1/download"
     );
+}
+
+/// `except` narrows a filter. Beside an explicit id list it is a contradiction the
+/// server's id branch never reads, so honouring it would trash the very photographs the
+/// caller excluded — refused before the request leaves rather than learned from a 400.
+#[tokio::test]
+async fn refuses_an_id_list_with_exclusions_rather_than_sending_it() {
+    let server = stub::start(|_, _| Reply::json(r#"{"count":0}"#)).await;
+
+    let client = ImogenClient::new(ClientOptions::new(&server.base_url));
+    let selection = AssetSelection {
+        asset_ids: Some(vec!["a".to_string(), "b".to_string()]),
+        except: Some(vec!["a".to_string()]),
+        ..Default::default()
+    };
+    let error = client.assets.trash(&selection).await.unwrap_err();
+
+    assert!(error.to_string().contains("except"), "{error}");
+    assert_eq!(server.call_count(), 0);
+}
+
+/// The listing is capped, and the cap has to be visible. A return type carrying only the
+/// rows cannot say "there are four thousand of these and you have two hundred", which is
+/// the difference between a sample and the whole vault.
+#[tokio::test]
+async fn the_vault_listing_says_how_big_the_vault_is() {
+    let server =
+        stub::start(|_, _| Reply::json(r#"{"items":[],"nextCursor":null,"total":4096}"#)).await;
+
+    let client = ImogenClient::new(ClientOptions::new(&server.base_url));
+    let page = client.vault.list(200).await.unwrap();
+
+    assert!(page.items.is_empty());
+    assert_eq!(page.total, Some(4096));
+}
+
+/// `period`, `cursor` and `limit` and nothing else: the vault spine takes no filter, so
+/// there is nothing a caller can send that widens what comes back.
+#[tokio::test]
+async fn the_vault_spine_asks_for_one_period_and_carries_no_filter() {
+    let server =
+        stub::start(|_, _| Reply::json(r#"{"items":[],"nextCursor":null,"total":0}"#)).await;
+
+    let client = ImogenClient::new(ClientOptions::new(&server.base_url));
+    client
+        .vault
+        .timeline_bucket("2011-08", None, None)
+        .await
+        .unwrap();
+
+    let call = server.calls().pop().unwrap();
+    assert_eq!(call.path, "/api/v1/vault/timeline/bucket");
+    assert_eq!(call.query, "period=2011-08");
 }
 
 #[tokio::test]

@@ -16,6 +16,7 @@
       { "operation": "trash", "method": "POST", "path": "/api/v1/assets/trash" },
       { "operation": "restore", "method": "POST", "path": "/api/v1/assets/restore" },
       { "operation": "timeline", "method": "GET", "path": "/api/v1/assets/timeline" },
+      { "operation": "timelineBucket", "method": "GET", "path": "/api/v1/assets/timeline/bucket" },
       { "operation": "stats", "method": "GET", "path": "/api/v1/assets/stats" },
       { "operation": "variant", "method": "GET", "path": "/api/v1/assets/{assetId}/{variant}" },
       { "operation": "download", "method": "GET", "path": "/api/v1/assets/{assetId}/download" },
@@ -53,6 +54,8 @@
       { "operation": "unlock", "method": "POST", "path": "/api/v1/vault/unlock" },
       { "operation": "lock", "method": "POST", "path": "/api/v1/vault/lock" },
       { "operation": "list", "method": "GET", "path": "/api/v1/vault/assets" },
+      { "operation": "timeline", "method": "GET", "path": "/api/v1/vault/timeline" },
+      { "operation": "timelineBucket", "method": "GET", "path": "/api/v1/vault/timeline/bucket" },
       { "operation": "moveIn", "method": "POST", "path": "/api/v1/vault/assets" },
       { "operation": "moveOut", "method": "DELETE", "path": "/api/v1/vault/assets" }
     ],

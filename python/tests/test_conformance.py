@@ -27,6 +27,7 @@ from imogen_sdk import (
     Asset,
     AssetPage,
     AssetQuery,
+    AssetSelection,
     AssetUpdate,
     AuthConfig,
     DetectedFace,
@@ -50,6 +51,9 @@ from imogen_sdk import (
     SignupRequest,
     StorageReport,
     Timeline,
+    TimelineBucket,
+    TimelineBucketQuery,
+    TimelineTile,
     TokenResponse,
     UploadSession,
     User,
@@ -130,6 +134,9 @@ async def invoke(client: ImogenClient, key: str, big_file: Path, small_file: Pat
         "assets.trash": lambda: client.assets.trash(ids),
         "assets.restore": lambda: client.assets.restore(ids),
         "assets.timeline": lambda: client.assets.timeline(),
+        "assets.timelineBucket": lambda: client.assets.timeline_bucket(
+            TimelineBucketQuery(period="2011-08")
+        ),
         "assets.stats": lambda: client.assets.stats(),
         "assets.variant": lambda: client.assets.bytes("ASSET", "thumbnail"),
         "assets.download": lambda: client.http.send("GET", "/api/v1/assets/ASSET/download"),
@@ -161,6 +168,8 @@ async def invoke(client: ImogenClient, key: str, big_file: Path, small_file: Pat
         "vault.unlock": lambda: client.vault.unlock("open sesame"),
         "vault.lock": lambda: client.vault.lock(),
         "vault.list": lambda: client.vault.list(),
+        "vault.timeline": lambda: client.vault.timeline(),
+        "vault.timelineBucket": lambda: client.vault.timeline_bucket("2024-06"),
         "vault.moveIn": lambda: client.vault.move_in(ids),
         "vault.moveOut": lambda: client.vault.move_out(ids),
         "auth.config": lambda: client.auth.config(),
@@ -283,6 +292,8 @@ MODEL_TYPES = {
     "vaultStatusLocked": VaultStatus,
     "vaultStatusUnlocked": VaultStatus,
     "timeline": Timeline,
+    "timelineBucket": TimelineBucket,
+    "timelineTile": TimelineTile,
     "libraryStats": LibraryStats,
     "uploadSession": UploadSession,
     "adminUser": AdminUser,
@@ -406,6 +417,17 @@ def test_builds_image_urls_without_a_request() -> None:
     )
 
 
+def test_asset_selection_dumps_except_as_the_reserved_word_it_is() -> None:
+    """``except`` is a Python keyword, so the model stores it as ``except_`` with an
+    explicit alias. That alias must win over the class's ``to_camel`` generator, which
+    would otherwise emit ``"except_"``, not the wire name the server expects.
+    """
+    body = AssetSelection(except_=["b"]).model_dump(by_alias=True, exclude_none=True)
+
+    assert body == {"except": ["b"]}
+    assert "except_" not in body
+
+
 ASSET_JSON = {
     "id": "a",
     "ownerId": "o",
@@ -434,6 +456,52 @@ ASSET_JSON = {
     "livePhotoVideoId": None,
     "deviceAssetId": None,
 }
+
+
+async def test_refuses_an_id_list_with_exclusions_rather_than_sending_it(serve: Any) -> None:
+    """``except`` narrows a filter.
+
+    Beside an explicit id list it is a contradiction the server's id branch never reads,
+    so honouring it would trash the very photographs the caller excluded. Refused before
+    the request leaves rather than learned from a 400.
+    """
+    stub = serve(lambda _request, _index: Reply(body='{"count":0}'))
+
+    async with ImogenClient(stub.base_url) as client:
+        with pytest.raises(ValueError, match="except"):
+            await client.assets.trash(AssetSelection(asset_ids=["a", "b"], except_=["a"]))
+
+    assert stub.call_count == 0
+
+
+async def test_the_vault_listing_says_how_big_the_vault_is(serve: Any) -> None:
+    """The listing is capped, and the cap has to be visible.
+
+    A return type carrying only the rows cannot say "there are four thousand of these and
+    you have two hundred", which is the difference between a sample and the whole vault.
+    """
+    payload = json.dumps({"items": [], "nextCursor": None, "total": 4096})
+    stub = serve(lambda _request, _index: Reply(body=payload))
+
+    async with ImogenClient(stub.base_url) as client:
+        page = await client.vault.list()
+
+    assert page.items == []
+    assert page.total == 4096
+
+
+async def test_the_vault_spine_asks_for_one_period_and_carries_no_filter(serve: Any) -> None:
+    """``period``, ``cursor`` and ``limit`` and nothing else: the vault spine takes no
+    filter, so there is nothing a caller can send that widens what comes back.
+    """
+    payload = json.dumps({"items": [], "nextCursor": None, "total": 0})
+    stub = serve(lambda _request, _index: Reply(body=payload))
+
+    async with ImogenClient(stub.base_url) as client:
+        await client.vault.timeline_bucket("2011-08")
+
+    assert stub.calls[-1].path == "/api/v1/vault/timeline/bucket"
+    assert stub.calls[-1].query == "period=2011-08"
 
 
 async def test_iterates_every_page_exactly_once(serve: Any) -> None:

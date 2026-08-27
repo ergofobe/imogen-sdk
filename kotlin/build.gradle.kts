@@ -37,4 +37,13 @@ tasks.test {
     testLogging {
         events("passed", "failed", "skipped")
     }
+
+    // The conformance suite reads the shared contract JSON (endpoints.json, models.json,
+    // errors.json) at runtime; those files live outside this project's source set, so
+    // Gradle's up-to-date check can't see them on its own. Without this, editing any of
+    // them leaves `test` UP-TO-DATE and the gate reports success without running anything.
+    // The whole directory is declared, not individual files, so a future contract file
+    // is covered automatically instead of silently falling into the same blind spot.
+    inputs.dir(rootProject.layout.projectDirectory.dir("../conformance"))
+        .withPropertyName("conformanceContract")
 }

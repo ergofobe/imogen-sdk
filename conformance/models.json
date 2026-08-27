@@ -331,6 +331,44 @@
       "buckets.0.count": 12
     }
   },
+  "timelineBucket": {
+    "payload": {
+      "date": "2024-06-01",
+      "count": 12,
+      "coverAssetId": "6a5f1e2c-90b4-4d1a-8f3e-2b7c9d0a1e45"
+    },
+    "assert": {
+      "date": "2024-06-01",
+      "count": 12,
+      "coverAssetId": "6a5f1e2c-90b4-4d1a-8f3e-2b7c9d0a1e45"
+    }
+  },
+  "timelineTile": {
+    "payload": {
+      "id": "6a5f1e2c-90b4-4d1a-8f3e-2b7c9d0a1e45",
+      "capturedAt": "2011-08-14T09:30:00.000Z",
+      "width": 4032,
+      "height": 3024,
+      "type": "image",
+      "status": "ready",
+      "favorite": true,
+      "duration": null,
+      "placeholderColor": "#3b5f7a",
+      "livePhotoVideoId": null
+    },
+    "assert": {
+      "id": "6a5f1e2c-90b4-4d1a-8f3e-2b7c9d0a1e45",
+      "capturedAt": "2011-08-14T09:30:00.000Z",
+      "width": 4032,
+      "height": 3024,
+      "type": "image",
+      "status": "ready",
+      "favorite": true,
+      "duration": null,
+      "placeholderColor": "#3b5f7a",
+      "livePhotoVideoId": null
+    }
+  },
   "libraryStats": {
     "payload": {
       "assetCount": 12840,

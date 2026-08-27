@@ -177,6 +177,8 @@ public struct AssetQuery: Hashable, Sendable {
     public var q: String?
     public var type: AssetType?
     public var albumId: String?
+    /// Photographs a given person appears in.
+    public var personId: String?
     public var favorite: Bool?
     public var archived: Bool?
     /// When true, returns only trashed assets. Trashed assets are hidden otherwise.
@@ -194,6 +196,7 @@ public struct AssetQuery: Hashable, Sendable {
         q: String? = nil,
         type: AssetType? = nil,
         albumId: String? = nil,
+        personId: String? = nil,
         favorite: Bool? = nil,
         archived: Bool? = nil,
         trashed: Bool? = nil,
@@ -208,6 +211,7 @@ public struct AssetQuery: Hashable, Sendable {
         self.q = q
         self.type = type
         self.albumId = albumId
+        self.personId = personId
         self.favorite = favorite
         self.archived = archived
         self.trashed = trashed
@@ -231,6 +235,7 @@ public struct AssetQuery: Hashable, Sendable {
         add("q", q)
         add("type", type?.rawValue)
         add("albumId", albumId)
+        add("personId", personId)
         add("favorite", favorite.map(String.init))
         add("archived", archived.map(String.init))
         add("trashed", trashed.map(String.init))
@@ -247,18 +252,197 @@ public struct AssetQuery: Hashable, Sendable {
 public struct TimelineBucket: Codable, Hashable, Sendable {
     public var date: String
     public var count: Int
+    /// The newest ready asset in the bucket, for an overview's period card. `nil` unless
+    /// `covers` was asked for, and `nil` for a period whose photographs are all still
+    /// being processed — such a period shows a count without a picture rather than
+    /// vanishing.
+    public var coverAssetId: String?
 
     /// Public, unlike most of the models here, because a client builds these rather than
     /// only decoding them: a timeline grid works out its own shape by adding to and taking
     /// from the day counts as photographs arrive and are deleted.
-    public init(date: String, count: Int) {
+    public init(date: String, count: Int, coverAssetId: String? = nil) {
         self.date = date
         self.count = count
+        self.coverAssetId = coverAssetId
     }
 }
 
 public struct Timeline: Codable, Hashable, Sendable {
     public var buckets: [TimelineBucket]
+}
+
+/// The filters every listing shares. Extracted so the timeline aggregate, the bucket
+/// endpoint, and a by-query selection cannot drift from what `GET /assets` accepts —
+/// three definitions of "which photographs" is three chances to disagree.
+public struct AssetFilter: Codable, Hashable, Sendable {
+    /// Free-text over filename, description, camera, and place.
+    public var q: String?
+    public var type: AssetType?
+    public var albumId: String?
+    /// Photographs a given person appears in.
+    public var personId: String?
+    public var favorite: Bool?
+    public var archived: Bool?
+    /// When true, returns only trashed assets. Trashed assets are hidden otherwise.
+    public var trashed: Bool?
+    public var takenAfter: String?
+    public var takenBefore: String?
+    /// Bounding box filter: `minLat,minLon,maxLat,maxLon`.
+    public var bbox: String?
+
+    public init(
+        q: String? = nil,
+        type: AssetType? = nil,
+        albumId: String? = nil,
+        personId: String? = nil,
+        favorite: Bool? = nil,
+        archived: Bool? = nil,
+        trashed: Bool? = nil,
+        takenAfter: String? = nil,
+        takenBefore: String? = nil,
+        bbox: String? = nil
+    ) {
+        self.q = q
+        self.type = type
+        self.albumId = albumId
+        self.personId = personId
+        self.favorite = favorite
+        self.archived = archived
+        self.trashed = trashed
+        self.takenAfter = takenAfter
+        self.takenBefore = takenBefore
+        self.bbox = bbox
+    }
+
+    /// Flattened to the query string the API expects. Absent fields stay absent, so the
+    /// server applies its own defaults rather than ours.
+    public var queryItems: [URLQueryItem] {
+        var items: [URLQueryItem] = []
+        func add(_ name: String, _ value: String?) {
+            if let value { items.append(URLQueryItem(name: name, value: value)) }
+        }
+
+        add("q", q)
+        add("type", type?.rawValue)
+        add("albumId", albumId)
+        add("personId", personId)
+        add("favorite", favorite.map(String.init))
+        add("archived", archived.map(String.init))
+        add("trashed", trashed.map(String.init))
+        add("takenAfter", takenAfter)
+        add("takenBefore", takenBefore)
+        add("bbox", bbox)
+        return items
+    }
+}
+
+public struct TimelineQuery: Hashable, Sendable {
+    public var filter: AssetFilter
+    public var covers: Bool?
+
+    public init(filter: AssetFilter = AssetFilter(), covers: Bool? = nil) {
+        self.filter = filter
+        self.covers = covers
+    }
+
+    public var queryItems: [URLQueryItem] {
+        var items = filter.queryItems
+        if let covers { items.append(URLQueryItem(name: "covers", value: String(covers))) }
+        return items
+    }
+}
+
+/// Everything a grid tile draws, and nothing else. An `Asset` carries checksum, exif,
+/// filenames, and both captured-at corrections — around 800 bytes against this one's
+/// 200 — none of which a tile reads. Over a heavy month that is the difference between
+/// one round trip and several.
+public struct TimelineTile: Codable, Hashable, Sendable, Identifiable {
+    public var id: String
+    public var capturedAt: String
+    public var width: Int?
+    public var height: Int?
+    public var type: AssetType
+    public var status: AssetStatus
+    public var favorite: Bool
+    /// Seconds. `nil` for images.
+    public var duration: Double?
+    public var placeholderColor: String?
+    public var livePhotoVideoId: String?
+}
+
+public struct TilePage: Codable, Hashable, Sendable {
+    public var items: [TimelineTile]
+    public var nextCursor: String?
+    /// Total matching rows, when cheap to compute. `nil` means "not counted".
+    public var total: Int?
+}
+
+public struct TimelineBucketQuery: Hashable, Sendable {
+    public var filter: AssetFilter
+    /// `YYYY-MM` or `YYYY-MM-DD`. A bare year is refused: it would be a whole-library
+    /// scan asked for by accident.
+    public var period: String
+    public var cursor: String?
+    /// Defaults server-side to 5000 when omitted, so a caller need not know the
+    /// server's default just to ask for one page.
+    public var limit: Int?
+
+    public init(
+        period: String, filter: AssetFilter = AssetFilter(), cursor: String? = nil, limit: Int? = nil
+    ) {
+        self.period = period
+        self.filter = filter
+        self.cursor = cursor
+        self.limit = limit
+    }
+
+    public var queryItems: [URLQueryItem] {
+        var items = filter.queryItems
+        items.append(URLQueryItem(name: "period", value: period))
+        if let cursor { items.append(URLQueryItem(name: "cursor", value: cursor)) }
+        if let limit { items.append(URLQueryItem(name: "limit", value: String(limit))) }
+        return items
+    }
+}
+
+/// What a bulk mutation acts on. Either an explicit list, or the filter the user was
+/// looking at minus whatever they unticked — so "select all" in a hundred-thousand-photo
+/// library is a filter, not a hundred thousand ids in a request body.
+public struct AssetSelection: Codable, Hashable, Sendable {
+    public var assetIds: [String]?
+    public var query: AssetFilter?
+    /// Capped deliberately: past this, an interface should not be offering a selection.
+    public var except: [String]?
+
+    public init(assetIds: [String]? = nil, query: AssetFilter? = nil, except: [String]? = nil) {
+        self.assetIds = assetIds
+        self.query = query
+        self.except = except
+    }
+
+    /// Throws when this selection cannot be sent. Every method that sends one checks
+    /// first, so a client learns of a contradictory selection here rather than from a 400
+    /// after the request has gone.
+    public func validate() throws {
+        if (assetIds == nil) == (query == nil) {
+            throw ImogenError(
+                status: 0, code: "bad_request",
+                message: "Provide exactly one of assetIds or query")
+        }
+        // `except` narrows a filter; beside an explicit list it is a contradiction, and
+        // the server's id branch never reads it — so honouring the request would act on
+        // the very photographs the caller excluded. Rejecting matches the cap rule: a
+        // destructive action silently narrowed is undetectable until somebody goes
+        // looking for a picture that is no longer there.
+        if assetIds != nil && except != nil {
+            throw ImogenError(
+                status: 0, code: "bad_request",
+                message:
+                    "except narrows a query selection only; with assetIds, leave the "
+                    + "unwanted ids out of the list")
+        }
+    }
 }
 
 public struct LibraryStats: Codable, Hashable, Sendable {

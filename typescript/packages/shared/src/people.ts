@@ -13,7 +13,19 @@ export const Person = z.object({
 })
 export type Person = z.infer<typeof Person>
 
-export const PersonWithPhotos = Person.extend({ photos: z.array(Asset) })
+export const PersonWithPhotos = Person.extend({
+  photos: z
+    .array(Asset)
+    .describe(
+      'A cover sample, not every photo of this person: at most 60 photographs, ' +
+        'newest (capturedAt desc, id desc) first. `photoCount` above counts faces ' +
+        'attributed to this person, not distinct photographs, so it can exceed the ' +
+        'number of photos here when they appear more than once in one frame (a ' +
+        'mirror, a group shot with a repeated detection). For an exact photograph ' +
+        'count, or all of them, page GET /assets/timeline/bucket with personId set ' +
+        "to this person's id.",
+    ),
+})
 export type PersonWithPhotos = z.infer<typeof PersonWithPhotos>
 
 /** Where a face sits in its photo, in the original image's pixels. */

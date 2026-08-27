@@ -99,6 +99,7 @@ describe('endpoint table', () => {
     'assets.trash': (c) => c.assets.trash(['ASSET']),
     'assets.restore': (c) => c.assets.restore(['ASSET']),
     'assets.timeline': (c) => c.assets.timeline(),
+    'assets.timelineBucket': (c) => c.assets.timelineBucket({ period: '2024-06' }),
     'assets.stats': (c) => c.assets.stats(),
     'assets.variant': (c) => c.assets.blob('ASSET', 'thumbnail'),
     'assets.download': (c) => c.http.send('GET', '/api/v1/assets/ASSET/download'),
@@ -133,6 +134,8 @@ describe('endpoint table', () => {
     'vault.unlock': (c) => c.vault.unlock('open sesame'),
     'vault.lock': (c) => c.vault.lock(),
     'vault.list': (c) => c.vault.list(),
+    'vault.timeline': (c) => c.vault.timeline(),
+    'vault.timelineBucket': (c) => c.vault.timelineBucket({ period: '2024-06' }),
     'vault.moveIn': (c) => c.vault.moveIn(['ASSET']),
     'vault.moveOut': (c) => c.vault.moveOut(['ASSET']),
 
@@ -275,7 +278,7 @@ describe('models decode as the contract says', () => {
 
   test('the timeline bucket fixture decodes', () => {
     for (const bucket of models.timeline.payload.buckets) {
-      expect(TimelineBucket.parse(bucket)).toEqual(bucket)
+      expect(TimelineBucket.parse(bucket)).toEqual({ ...bucket, coverAssetId: null })
     }
   })
 })
