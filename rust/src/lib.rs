@@ -46,6 +46,7 @@ pub use crate::auth::Auth;
 pub use crate::error::{Error, Result};
 pub use crate::http::{
     BoxFuture, ClientOptions, HttpClient, RefreshToken, RequestOptions, TokenSource,
+    DEFAULT_CONNECT_TIMEOUT,
 };
 pub use crate::models::*;
 pub use crate::oauth::{OAuthClient, PendingAuthorization, StoredTokens};
