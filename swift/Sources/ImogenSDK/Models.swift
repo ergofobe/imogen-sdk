@@ -112,23 +112,34 @@ public struct AssetUpdate: Codable, Hashable, Sendable {
     }
 }
 
-/// Metadata a client may attach at upload time. All fields are hints; EXIF wins.
+/// Metadata a client may attach at upload time. All fields are hints; EXIF wins where it
+/// has an opinion.
+///
+/// `description` and `location` are here so an importer carrying metadata from somewhere
+/// else — a Google Takeout sidecar, say — can land a photograph complete in one request
+/// rather than an upload followed by a patch for every file it moves.
 public struct AssetUploadMetadata: Codable, Hashable, Sendable {
     public var deviceAssetId: String?
     public var capturedAt: String?
     public var favorite: Bool?
     public var filename: String?
+    public var description: String?
+    public var location: GeoPoint?
 
     public init(
         deviceAssetId: String? = nil,
         capturedAt: String? = nil,
         favorite: Bool? = nil,
-        filename: String? = nil
+        filename: String? = nil,
+        description: String? = nil,
+        location: GeoPoint? = nil
     ) {
         self.deviceAssetId = deviceAssetId
         self.capturedAt = capturedAt
         self.favorite = favorite
         self.filename = filename
+        self.description = description
+        self.location = location
     }
 }
 
@@ -349,6 +360,8 @@ public struct UploadSessionCreate: Codable, Hashable, Sendable {
     public var deviceAssetId: String?
     public var capturedAt: String?
     public var favorite: Bool?
+    public var description: String?
+    public var location: GeoPoint?
 }
 
 public struct UploadSession: Codable, Hashable, Sendable {

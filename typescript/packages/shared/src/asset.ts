@@ -84,12 +84,19 @@ export const AssetUpdate = z.object({
 })
 export type AssetUpdate = z.infer<typeof AssetUpdate>
 
-/** Metadata a client may attach at upload time. All fields are hints; EXIF wins. */
+/**
+ * Metadata a client may attach at upload time. All fields are hints; EXIF wins where it
+ * has an opinion. `description` and `location` exist so an importer carrying metadata
+ * from somewhere else — a Google Takeout sidecar, say — can land a photograph complete in
+ * one request rather than an upload followed by a patch for every file it moves.
+ */
 export const AssetUploadMetadata = z.object({
   deviceAssetId: z.string().max(512).optional(),
   capturedAt: z.iso.datetime().optional(),
   favorite: z.coerce.boolean().optional(),
   filename: z.string().max(1024).optional(),
+  description: z.string().max(4096).optional(),
+  location: GeoPoint.optional(),
 })
 export type AssetUploadMetadata = z.infer<typeof AssetUploadMetadata>
 

@@ -125,7 +125,12 @@ pub struct AssetUpdate {
     pub location: Option<Option<GeoPoint>>,
 }
 
-/// Metadata a client may attach at upload time. All fields are hints; EXIF wins.
+/// Metadata a client may attach at upload time. All fields are hints; EXIF wins where it
+/// has an opinion.
+///
+/// `description` and `location` are here so an importer carrying metadata from somewhere
+/// else — a Google Takeout sidecar, say — can land a photograph complete in one request
+/// rather than an upload followed by a patch for every file it moves.
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AssetUploadMetadata {
@@ -137,6 +142,10 @@ pub struct AssetUploadMetadata {
     pub favorite: Option<bool>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub filename: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub description: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub location: Option<GeoPoint>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -416,6 +425,10 @@ pub struct UploadSessionCreate {
     pub captured_at: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub favorite: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub description: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub location: Option<GeoPoint>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]

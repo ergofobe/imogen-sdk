@@ -168,12 +168,20 @@ class AssetUpdate(Contract):
 
 
 class AssetUploadMetadata(Contract):
-    """Metadata a client may attach at upload time. All fields are hints; EXIF wins."""
+    """Metadata a client may attach at upload time. All fields are hints; EXIF wins where
+    it has an opinion.
+
+    ``description`` and ``location`` are here so an importer carrying metadata from
+    somewhere else — a Google Takeout sidecar, say — can land a photograph complete in one
+    request rather than an upload followed by a patch for every file it moves.
+    """
 
     device_asset_id: str | None = None
     captured_at: str | None = None
     favorite: bool | None = None
     filename: str | None = None
+    description: str | None = None
+    location: GeoPoint | None = None
 
 
 class AssetUploadResult(Contract):
@@ -326,6 +334,8 @@ class UploadSessionCreate(Contract):
     device_asset_id: str | None = None
     captured_at: str | None = None
     favorite: bool | None = None
+    description: str | None = None
+    location: GeoPoint | None = None
 
 
 class UploadSession(Contract):
