@@ -42,11 +42,20 @@ export class Vault {
     return this.http.request<void>('POST', '/api/v1/vault/lock')
   }
 
-  async list(limit = 200): Promise<Asset[]> {
-    const page = await this.http.request<{ items: Asset[] }>('GET', '/api/v1/vault/assets', {
+  /**
+   * A sample of the vault, newest first, and how big the vault actually is.
+   *
+   * `total` rather than just the rows, because this endpoint is capped and the cap used to
+   * be invisible: it answered two hundred photographs with no cursor and no count, which
+   * reads as "that is all of them" and for a larger vault simply was not true. A caller
+   * that wants the whole thing wants `timeline` and `timelineBucket`; this is for anything
+   * that wants a handful of recent rows without laying out a grid, and `total` is what lets
+   * it know that is what it got.
+   */
+  list(limit = 200): Promise<{ items: Asset[]; total: number }> {
+    return this.http.request<{ items: Asset[]; total: number }>('GET', '/api/v1/vault/assets', {
       query: { limit },
     })
-    return page.items
   }
 
   /**
