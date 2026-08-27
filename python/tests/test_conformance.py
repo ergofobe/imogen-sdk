@@ -50,6 +50,9 @@ from imogen_sdk import (
     SignupRequest,
     StorageReport,
     Timeline,
+    TimelineBucket,
+    TimelineBucketQuery,
+    TimelineTile,
     TokenResponse,
     UploadSession,
     User,
@@ -130,6 +133,9 @@ async def invoke(client: ImogenClient, key: str, big_file: Path, small_file: Pat
         "assets.trash": lambda: client.assets.trash(ids),
         "assets.restore": lambda: client.assets.restore(ids),
         "assets.timeline": lambda: client.assets.timeline(),
+        "assets.timelineBucket": lambda: client.assets.timeline_bucket(
+            TimelineBucketQuery(period="2011-08")
+        ),
         "assets.stats": lambda: client.assets.stats(),
         "assets.variant": lambda: client.assets.bytes("ASSET", "thumbnail"),
         "assets.download": lambda: client.http.send("GET", "/api/v1/assets/ASSET/download"),
@@ -283,6 +289,8 @@ MODEL_TYPES = {
     "vaultStatusLocked": VaultStatus,
     "vaultStatusUnlocked": VaultStatus,
     "timeline": Timeline,
+    "timelineBucket": TimelineBucket,
+    "timelineTile": TimelineTile,
     "libraryStats": LibraryStats,
     "uploadSession": UploadSession,
     "adminUser": AdminUser,

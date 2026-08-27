@@ -27,8 +27,10 @@ __all__ = [
     "ApiError",
     "ApiErrorBody",
     "Asset",
+    "AssetFilter",
     "AssetPage",
     "AssetQuery",
+    "AssetSelection",
     "AssetSort",
     "AssetStatus",
     "AssetType",
@@ -76,8 +78,12 @@ __all__ = [
     "SortOrder",
     "StoragePerUser",
     "StorageReport",
+    "TilePage",
     "Timeline",
     "TimelineBucket",
+    "TimelineBucketQuery",
+    "TimelineQuery",
+    "TimelineTile",
     "TokenResponse",
     "UPLOAD_CHUNK_BYTES",
     "UploadSession",
@@ -208,6 +214,33 @@ AssetSort = Literal["capturedAt", "createdAt", "filename"]
 SortOrder = Literal["asc", "desc"]
 
 
+class AssetFilter(Contract):
+    """The filters every listing shares: the timeline, the bucket endpoint, and a
+    query-based selection cannot drift from what ``GET /assets`` accepts.
+    """
+
+    q: str | None = None
+    type: AssetType | None = None
+    album_id: str | None = None
+    #: Photographs a given person appears in.
+    person_id: str | None = None
+    favorite: bool | None = None
+    archived: bool | None = None
+    #: When true, returns only trashed assets. Trashed assets are hidden otherwise.
+    trashed: bool | None = None
+    taken_after: str | None = None
+    taken_before: str | None = None
+    #: Bounding box filter: ``minLat,minLon,maxLat,maxLon``.
+    bbox: str | None = None
+
+    def to_params(self) -> dict[str, str]:
+        """Flattened to the query string the API expects."""
+        params: dict[str, str] = {}
+        for key, value in self.model_dump(by_alias=True, exclude_none=True).items():
+            params[key] = str(value).lower() if isinstance(value, bool) else str(value)
+        return params
+
+
 class AssetQuery(Contract):
     """Cursor pagination.
 
@@ -249,10 +282,60 @@ class TimelineBucket(Contract):
 
     date: str
     count: int
+    #: The newest ready asset in the bucket, for an overview's period card. Null unless
+    #: ``covers`` was asked for.
+    cover_asset_id: str | None = None
 
 
 class Timeline(Contract):
     buckets: list[TimelineBucket]
+
+
+class TimelineQuery(AssetFilter):
+    covers: bool | None = None
+
+
+class TimelineTile(Contract):
+    """Everything a grid tile draws, and nothing else."""
+
+    id: str
+    captured_at: str
+    width: int | None = None
+    height: int | None = None
+    type: AssetType
+    status: AssetStatus
+    favorite: bool
+    duration: float | None = None
+    placeholder_color: str | None = None
+    live_photo_video_id: str | None = None
+
+
+class TilePage(Contract):
+    items: list[TimelineTile]
+    next_cursor: str | None = None
+    #: Total matching rows, when cheap to compute. ``None`` means "not counted".
+    total: int | None = None
+
+
+class TimelineBucketQuery(AssetFilter):
+    """``YYYY-MM`` or ``YYYY-MM-DD``. A bare year is refused server-side: it would be a
+    whole-library scan asked for by accident.
+    """
+
+    period: str
+    cursor: str | None = None
+    limit: int | None = None
+
+
+class AssetSelection(Contract):
+    """What a bulk mutation acts on: an explicit id list, or the filter minus whatever was
+    unticked.
+    """
+
+    asset_ids: list[str] | None = None
+    query: AssetFilter | None = None
+    #: Capped deliberately: past this, an interface should not be offering a selection.
+    except_: list[str] | None = Field(default=None, alias="except")
 
 
 class LibraryStats(Contract):
