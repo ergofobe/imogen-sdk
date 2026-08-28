@@ -1,6 +1,6 @@
 {
   "name": "@imogen/shared",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "type": "module",
   "description": "The imogen API contract: zod schemas and types shared by the server and every client",
   "license": "AGPL-3.0-or-later",
