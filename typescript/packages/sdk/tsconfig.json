@@ -1,4 +1,11 @@
 {
   "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    // `exports` now points @imogen/shared at its build output, which tsc believes and bun
+    // does not. Without this, typechecking the sdk would require having built shared first.
+    "paths": {
+      "@imogen/shared": ["../shared/src/index.ts"]
+    }
+  },
   "include": ["src/**/*"]
 }

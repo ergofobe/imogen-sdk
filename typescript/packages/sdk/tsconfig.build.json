@@ -1,0 +1,18 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "composite": true,
+    "noEmit": false,
+    "rootDir": "src",
+    "outDir": "dist",
+    "declaration": true,
+    "declarationMap": true,
+    "sourceMap": true
+  },
+  // A project reference rather than a path mapping, so the build consumes shared's emitted
+  // declarations — the same ones npm ships — instead of pulling its sources into this
+  // package's program. `tsc -b` builds shared first.
+  "references": [{ "path": "../shared/tsconfig.build.json" }],
+  "include": ["src/**/*"],
+  "exclude": ["src/**/*.test.ts"]
+}
