@@ -11,11 +11,12 @@
   },
   "scripts": {
     "build": "bun run --filter '*' build",
-    "test": "bun test",
-    "typecheck": "tsc -p packages/shared && tsc -p packages/sdk",
+    "test": "bun test packages",
+    "test:live": "bun test live",
+    "typecheck": "tsc -p packages/shared && tsc -p packages/sdk && tsc -p live",
     "lint": "biome check .",
     "lint:fix": "biome check --write .",
-    "verify": "bun run lint && bun run typecheck && bun run build && bun test",
+    "verify": "bun run lint && bun run typecheck && bun run build && bun run test",
     "publish:all": "bun run --filter '*' npm-publish"
   },
   "devDependencies": {

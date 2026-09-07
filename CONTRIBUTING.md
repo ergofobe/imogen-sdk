@@ -86,6 +86,46 @@ drives it through the published TypeScript client.
 
 If you change the wire format, both repositories need the change.
 
+## Staying usable on the server people are actually running
+
+Both of those check a *new server* against a *known client*. Users hit the opposite: they
+update apps long before they update servers, and a store release cannot be recalled. So a
+client built from this branch has to work against the server release that is already out
+there.
+
+That is what the `forward-compat` job in CI checks. It resolves the latest `imogen-server`
+release at run time, starts that image against a Postgres service container, and runs
+`typescript/live/forward-compat.test.ts` against it over real HTTP: discovery, both RFC 9728
+protected-resource documents, an authorization with and without a `resource`, the token
+exchange, and one authenticated read.
+
+**A red run is not a bug in the test.** It means the change on this branch needs a server
+change to function — which makes it a breaking change, and its PR has to say so. The rule
+being enforced is that the SDK may only *add*: a new endpoint is called on request rather
+than unconditionally, a new request field is optional and ignorable by a server that has
+never heard of it, and a new response field is optional in every port's model.
+
+The job checks that a released server does not *choke* on something new, never that it
+*honours* it — ignoring an unknown field is exactly what makes a change additive. Whether
+the current server gives a new field meaning is `sdk-contract.test.ts`'s question, on the
+other side of the split.
+
+To run it against a server yourself:
+
+```bash
+docker run -d --name imogen-server --network host \
+  -e DATABASE_URL=postgres://imogen:imogen@localhost:5432/imogen \
+  -e IMOGEN_PUBLIC_URL=http://localhost:3000 \
+  ghcr.io/ergofobe/imogen-server:0.3.0        # ghcr tags carry no `v`; git tags do
+
+cd typescript && IMOGEN_SERVER_URL=http://localhost:3000 bun run test:live
+```
+
+`bun run verify` does not run it — the default suite is scoped to `packages/`, because a
+suite that needs a server on the other end has no business failing on a laptop that has
+none. For the same reason the live file refuses to run without `IMOGEN_SERVER_URL` rather
+than skipping: a green run that quietly tested nothing is worse than a red one.
+
 ## Style
 
 Match the surrounding code. Each port is written in its own language's idiom rather than

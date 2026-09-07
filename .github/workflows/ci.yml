@@ -109,3 +109,78 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
       - name: Test
         run: ./gradlew build --no-daemon
+
+  # The five jobs above check this repository against itself. This one checks it against
+  # the world it has to keep working in: the client on this branch, over real HTTP, against
+  # the server image of the last release. See CONTRIBUTING.md for what a red run means.
+  forward-compat:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        # pgvector, not stock postgres: the server's own migrations reach for the extension
+        # on the way up, and fail the container before it ever serves a request.
+        image: pgvector/pgvector:pg17
+        env:
+          POSTGRES_USER: imogen
+          POSTGRES_PASSWORD: imogen
+          POSTGRES_DB: imogen
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U imogen -d imogen"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+    steps:
+      - uses: actions/checkout@v5
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.3.14
+
+      # Resolved at run time rather than pinned here, so this tracks server releases
+      # without a pointer anyone has to remember to bump.
+      - name: Resolve the last released server
+        id: server
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          tag=$(gh release view --repo ergofobe/imogen-server --json tagName -q '.tagName')
+          # Releases are tagged `v0.3.0`; ghcr publishes `0.3.0`. The two namespaces
+          # disagree by exactly one character, and `v0.3.0` is `manifest unknown`.
+          echo "image=ghcr.io/ergofobe/imogen-server:${tag#v}" >> "$GITHUB_OUTPUT"
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+
+      - name: Start ${{ steps.server.outputs.tag }}
+        run: |
+          set -euo pipefail
+          # Deliberately not :latest — that tracks main, which is the wrong side of the
+          # question. A missing image fails the job here rather than falling through to
+          # something else and reporting a compatibility that was never tested.
+          docker pull "${{ steps.server.outputs.image }}"
+          # --network host so the container reaches the postgres service on the runner's
+          # own localhost, and the runner reaches the server the same way.
+          docker run -d --name imogen-server --network host \
+            -e DATABASE_URL=postgres://imogen:imogen@localhost:5432/imogen \
+            -e IMOGEN_PUBLIC_URL=http://localhost:3000 \
+            -e IMOGEN_ALLOW_SIGNUP=true \
+            "${{ steps.server.outputs.image }}"
+          # The image runs its own migrations before it serves, so there are none to run here.
+          for _ in $(seq 1 60); do
+            curl -sf -o /dev/null http://localhost:3000/api/v1/health && break
+            sleep 2
+          done
+          curl -sf http://localhost:3000/api/v1/health
+
+      - name: Install
+        working-directory: typescript
+        run: bun install --frozen-lockfile
+
+      - name: Forward compatibility
+        working-directory: typescript
+        env:
+          IMOGEN_SERVER_URL: http://localhost:3000
+        run: bun run test:live
+
+      - name: Server logs
+        if: failure()
+        run: docker logs imogen-server
