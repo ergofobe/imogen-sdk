@@ -36,19 +36,30 @@ which is generated and gitignored. A consumer that resolves this repository as a
 checkout — `imogen-server` does, via `file:` — therefore has to build it first:
 
 ```bash
-cd typescript && bun install && bun run build
+cd typescript && bun install && bun run build          # in imogen-sdk
+bun install --force                                    # in the consumer
 ```
 
-Skipping that fails in an unhelpfully asymmetric way: the `bun` export condition still
+The second line is not optional: bun *copies* a `file:` dependency rather than symlinking
+it, so a consumer that installed before the build keeps its dist-less copy and nothing you
+do in this repository reaches it.
+
+Skipping either fails in an unhelpfully asymmetric way: the `bun` export condition still
 resolves to TypeScript source, so the consumer's tests pass while its `tsc` reports
 `Cannot find module '@imogen/sdk'`.
 
 ## Bumping a version
 
-The five ports move in lockstep, and inside `typescript/` the version is written twice:
-`packages/shared/package.json` and the exact range `@imogen/sdk` pins it at. They have to
-move in the same commit — `bun install` resolves the sibling from the workspace only while
-the two agree, and looks for the range on npm when they do not.
+The five ports move in lockstep, and inside `typescript/` the version is written in four
+places: `package.json`, `packages/shared/package.json`, `packages/sdk/package.json`, and the
+exact range `@imogen/sdk` pins shared at. They have to move in the same commit.
+
+Two different things go wrong if they drift. `bun install` resolves the sibling from the
+workspace only while shared's version and sdk's range agree, and looks for the range on npm
+when they do not — which fails the install, before any test can run. And publishing a
+half-bumped pair puts shared's new version on the registry while sdk is rejected as a
+duplicate of the old one, leaving the two split across versions. `packaging.test.ts` covers
+both.
 
 ## Changing the contract
 

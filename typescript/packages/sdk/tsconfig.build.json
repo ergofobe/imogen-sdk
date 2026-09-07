@@ -1,6 +1,11 @@
 {
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
+    // The base is configured for bun, which resolves extensionless relative imports.
+    // Node does not, and this is the config that emits the package Node loads — under
+    // nodenext a missing extension is a compile error rather than a broken tarball.
+    "module": "nodenext",
+    "moduleResolution": "nodenext",
     "composite": true,
     "noEmit": false,
     "rootDir": "src",

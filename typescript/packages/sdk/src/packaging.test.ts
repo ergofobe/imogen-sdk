@@ -1,5 +1,14 @@
 import { describe, expect, test } from 'bun:test'
-import { cpSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync } from 'node:fs'
+import {
+  cpSync,
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  realpathSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 
@@ -56,6 +65,18 @@ function packedPaths(root: string): string[] {
   const entries = JSON.parse(packed.stdout.toString()) as [{ files: { path: string }[] }]
   return entries[0].files.map((file) => file.path)
 }
+
+const workspaceVersion = (
+  JSON.parse(readFileSync(join(workspaceRoot, 'package.json'), 'utf8')) as Manifest
+).version
+
+test('keeps the workspace on one version', () => {
+  // The five ports are versioned in lockstep because they share one contract, and inside
+  // typescript/ that means three manifests plus the range sdk pins shared at. Moving some
+  // and not the others publishes half a release: shared at the new version, sdk rejected
+  // by the registry as a duplicate of the old one.
+  expect(packages.map((pkg) => pkg.manifest.version)).toEqual(packages.map(() => workspaceVersion))
+})
 
 describe.each(packages)('$manifest.name', ({ root, manifest }) => {
   test('declares no dependency npm cannot resolve', () => {
@@ -134,17 +155,17 @@ test('a plain Node consumer can install the tarballs and import them', () => {
       expect(untar.stderr.toString()).toBe('')
       expect(untar.exitCode).toBe(0)
     }
-    // The tarballs pin a registry version of zod that is not published here either, so the
-    // dependency is supplied from the workspace rather than installed.
-    cpSync(
-      realpathSync(join(workspaceRoot, 'packages/shared/node_modules/zod')),
-      join(modules, 'zod'),
-      {
-        recursive: true,
-      },
-    )
-    Bun.write(join(consumer, 'package.json'), '{"type":"module"}\n')
-    Bun.write(
+    // Copied from the workspace rather than installed, so the test needs no network. bun's
+    // isolated layout puts it under the package that depends on it; a hoisted install puts
+    // it at the root.
+    const zod = [
+      join(workspaceRoot, 'packages/shared/node_modules/zod'),
+      join(workspaceRoot, 'node_modules/zod'),
+    ].find((candidate) => existsSync(candidate))
+    expect(zod).toBeDefined()
+    cpSync(realpathSync(zod ?? ''), join(modules, 'zod'), { recursive: true })
+    writeFileSync(join(consumer, 'package.json'), '{"type":"module"}\n')
+    writeFileSync(
       join(consumer, 'consume.mjs'),
       [
         "import { ImogenClient } from '@imogen/sdk'",
@@ -163,7 +184,7 @@ test('a plain Node consumer can install the tarballs and import them', () => {
     // Half the package is its types, and importing at runtime does not exercise them: the
     // declarations are what `types` points at, under the resolution a TypeScript consumer
     // actually uses.
-    Bun.write(
+    writeFileSync(
       join(consumer, 'consume.ts'),
       [
         "import { ImogenClient } from '@imogen/sdk'",
@@ -172,7 +193,7 @@ test('a plain Node consumer can install the tarballs and import them', () => {
         'export const id = (asset: Asset): string => asset.id',
       ].join('\n'),
     )
-    Bun.write(
+    writeFileSync(
       join(consumer, 'tsconfig.json'),
       JSON.stringify({
         compilerOptions: {
