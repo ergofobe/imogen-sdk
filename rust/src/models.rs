@@ -802,6 +802,25 @@ pub struct AuthorizationServerMetadata {
     pub code_challenge_methods_supported: Vec<String>,
 }
 
+/// RFC 9728 protected resource metadata.
+///
+/// `resource` is the identifier to echo back as the RFC 8707 `resource` parameter. The
+/// server compares it against the single spelling it publishes here, so a client that
+/// rebuilds the string from its own base URL can produce a near-miss — a stray port, a
+/// trailing slash — that comes back as `invalid_target`.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct ProtectedResourceMetadata {
+    pub resource: String,
+    #[serde(default)]
+    pub authorization_servers: Vec<String>,
+    #[serde(default)]
+    pub scopes_supported: Vec<String>,
+    #[serde(default)]
+    pub bearer_methods_supported: Vec<String>,
+    #[serde(default)]
+    pub resource_documentation: String,
+}
+
 // --- pairing ---
 
 /// A ticket a signed-in browser makes so a device does not have to be told where the

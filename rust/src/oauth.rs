@@ -12,8 +12,27 @@ use url::Url;
 use crate::error::{Error, Result};
 use crate::models::{
     AuthorizationServerMetadata, ClientRegistrationResponse, PairingClaim, PairingClaimRequest,
-    TokenResponse,
+    ProtectedResourceMetadata, TokenResponse,
 };
+
+/// A resource the server publishes a protected-resource document for: the REST API, or MCP.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum ProtectedResourcePath {
+    /// The site root, which is the REST API.
+    #[default]
+    Root,
+    /// The MCP endpoint.
+    Mcp,
+}
+
+impl ProtectedResourcePath {
+    fn as_str(self) -> &'static str {
+        match self {
+            Self::Root => "",
+            Self::Mcp => "/mcp",
+        }
+    }
+}
 
 /// What comes back from [`OAuthClient::pair`]: an account, and the client it belongs to.
 #[derive(Debug, Clone, PartialEq)]
@@ -32,6 +51,11 @@ pub struct PendingAuthorization {
     pub state: String,
     pub redirect_uri: String,
     pub client_id: String,
+    /// The RFC 8707 resource this authorization asked for, or `None` for a token valid at
+    /// every surface. Carried here rather than passed again at the exchange because the
+    /// server refuses a token request naming a resource the code did not record: the two
+    /// halves cannot disagree if only one of them holds it.
+    pub resource: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -57,7 +81,7 @@ impl StoredTokens {
 /// # async fn run() -> imogen_sdk::Result<()> {
 /// let oauth = imogen_sdk::OAuthClient::new("https://photos.example.com");
 /// let client = oauth.register("My Photo App", &["myapp://oauth".into()], None).await?;
-/// let pending = oauth.begin_authorization(&client.client_id, "myapp://oauth", None).await?;
+/// let pending = oauth.begin_authorization(&client.client_id, "myapp://oauth", None, None).await?;
 /// // open pending.authorization_url in the system browser, then on the callback:
 /// let tokens = oauth.complete_authorization(&pending, "myapp://oauth?code=...").await?;
 /// # Ok(())
@@ -103,6 +127,29 @@ impl OAuthClient {
         Ok(metadata)
     }
 
+    /// RFC 9728: the document describing one resource this server protects.
+    ///
+    /// Read the identifier to bind a token to from `resource` here rather than building
+    /// it — see [`ProtectedResourceMetadata`].
+    pub async fn discover_protected_resource(
+        &self,
+        path: ProtectedResourcePath,
+    ) -> Result<ProtectedResourceMetadata> {
+        let url = format!(
+            "{}/.well-known/oauth-protected-resource{}",
+            self.base_url,
+            path.as_str()
+        );
+        let response = self.http.get(url).send().await?;
+        if !response.status().is_success() {
+            return Err(Error::Oauth(
+                "Could not read the protected resource metadata".into(),
+            ));
+        }
+
+        Ok(serde_json::from_str(&response.text().await?)?)
+    }
+
     /// RFC 7591 dynamic registration, so an app never ships a hard-coded client id.
     pub async fn register(
         &self,
@@ -134,11 +181,16 @@ impl OAuthClient {
         Ok(serde_json::from_str(&response.text().await?)?)
     }
 
+    /// `resource` is RFC 8707. When given, the token is bound to that one resource and is
+    /// refused everywhere else; take the value from [`Self::discover_protected_resource`].
+    /// Pass `None` for a token valid at every surface, which is what pairing has to use —
+    /// the claim endpoint mints its code server-side and cannot record a resource.
     pub async fn begin_authorization(
         &self,
         client_id: &str,
         redirect_uri: &str,
         scopes: Option<&[String]>,
+        resource: Option<&str>,
     ) -> Result<PendingAuthorization> {
         let metadata = self.discover().await?;
         let code_verifier = random_string(32);
@@ -154,6 +206,9 @@ impl OAuthClient {
             pairs.append_pair("state", &state);
             pairs.append_pair("code_challenge", &s256(&code_verifier));
             pairs.append_pair("code_challenge_method", "S256");
+            if let Some(resource) = resource {
+                pairs.append_pair("resource", resource);
+            }
         }
 
         Ok(PendingAuthorization {
@@ -162,6 +217,7 @@ impl OAuthClient {
             state,
             redirect_uri: redirect_uri.to_string(),
             client_id: client_id.to_string(),
+            resource: resource.map(str::to_string),
         })
     }
 
@@ -193,14 +249,17 @@ impl OAuthClient {
             ));
         };
 
-        self.exchange(&[
+        let mut form = vec![
             ("grant_type", "authorization_code"),
-            ("client_id", &pending.client_id),
-            ("code", code),
-            ("code_verifier", &pending.code_verifier),
-            ("redirect_uri", &pending.redirect_uri),
-        ])
-        .await
+            ("client_id", pending.client_id.as_str()),
+            ("code", code.as_str()),
+            ("code_verifier", pending.code_verifier.as_str()),
+            ("redirect_uri", pending.redirect_uri.as_str()),
+        ];
+        if let Some(resource) = pending.resource.as_deref() {
+            form.push(("resource", resource));
+        }
+        self.exchange(&form).await
     }
 
     /// The whole pairing sequence, from a scanned QR code to tokens.
