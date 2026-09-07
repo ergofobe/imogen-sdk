@@ -184,6 +184,12 @@ enum Conformance {
             case "oauth.discover":
                 _ = try await client.http.send("GET", "/.well-known/oauth-authorization-server")
 
+            case "oauth.protectedResource":
+                _ = try await client.http.send("GET", "/.well-known/oauth-protected-resource")
+
+            case "oauth.protectedResourceMcp":
+                _ = try await client.http.send("GET", "/.well-known/oauth-protected-resource/mcp")
+
             default: return false
             }
         } catch {
@@ -300,6 +306,7 @@ enum Conformance {
         try check(StorageReport.self, "storageReport")
         try check(ServerSettings.self, "serverSettings")
         try check(TokenResponse.self, "tokenResponse")
+        try check(ProtectedResourceMetadata.self, "protectedResourceMetadata")
         try check(PairingTicket.self, "pairingTicket")
         try check(PairingStatus.self, "pairingStatusUnclaimed")
         try check(PairingStatus.self, "pairingStatusClaimed")
@@ -498,6 +505,83 @@ enum Conformance {
         expectEqual(client.assets.url(for: "A1", variant: .preview),
             "\(Conformance.base)/api/v1/assets/A1/preview")
         expectEqual(client.assets.downloadURL(for: "A1"), "\(Conformance.base)/api/v1/assets/A1/download")
+    }
+
+    // MARK: The RFC 8707 resource indicator
+
+    /// Reads one field out of an `application/x-www-form-urlencoded` body.
+    ///
+    /// `URLComponents` is no help here: assigning a form body to `query` leaves the
+    /// percent-encoding in place rather than resolving it, so `resource` comes back as
+    /// `https%3A%2F%2F…` and never matches the fixture.
+    static func formValue(_ body: String, _ name: String) -> String? {
+        for pair in body.split(separator: "&") {
+            let parts = pair.split(separator: "=", maxSplits: 1)
+            guard parts.count == 2, parts[0] == name else { continue }
+            return String(parts[1]).removingPercentEncoding
+        }
+        return nil
+    }
+
+    /// Answers discovery, then hands back a token for whatever is exchanged.
+    static func oauthReply(_ request: Recorded, _ index: Int) -> Reply {
+        if request.path == "/.well-known/oauth-authorization-server" {
+            return .json(
+                """
+                {"issuer":"\(base)","authorization_endpoint":"\(base)/oauth/authorize",                "token_endpoint":"\(base)/oauth/token"}
+                """
+            )
+        }
+        return .json(
+            #"{"access_token":"at","token_type":"Bearer","expires_in":3600,"scope":"library:read"}"#
+        )
+    }
+
+    static func testTheResourceIndicatorTravelsOnBothLegsOrNeither() async throws {
+        let endpoints = try Conformance.fixture("endpoints.json")
+        let indicator = endpoints["oauthResourceIndicator"] as! [String: Any]
+
+        for case let item as [String: Any] in indicator["cases"] as! [Any] {
+            let name = item["name"] as! String
+            let resource = item["resource"] as? String
+            let session = stubbedSession(Conformance.oauthReply)
+            let oauth = OAuthClient(baseURL: base, session: session)
+
+            let pending = try await oauth.beginAuthorization(
+                clientId: "CLIENT", redirectURI: "app://callback", resource: resource
+            )
+
+            let query = URLComponents(string: pending.authorizationURL)?.queryItems ?? []
+            let sent = query.first { $0.name == "resource" }?.value
+            expectEqual(sent, item["expectAuthorizationParam"] as? String, "\(name): authorization")
+
+            let before = StubState.shared.callCount
+            _ = try await oauth.completeAuthorization(
+                pending, callbackURL: "app://callback?code=CODE&state=\(pending.state)"
+            )
+
+            let body = String(decoding: StubState.shared.calls[before].body, as: UTF8.self)
+            expectEqual(formValue(body, "resource"), item["expectTokenParam"] as? String,
+                "\(name): token request")
+        }
+    }
+
+    static func testEachResourceIdentifierIsReadFromItsDocument() async throws {
+        let session = stubbedSession { _, _ in
+            .json(#"{"resource":"https://photos.example.test/mcp"}"#)
+        }
+        let oauth = OAuthClient(baseURL: base, session: session)
+
+        _ = try await oauth.discoverProtectedResource()
+        _ = try await oauth.discoverProtectedResource(.mcp)
+
+        expectEqual(
+            StubState.shared.calls.map(\.path),
+            [
+                "/.well-known/oauth-protected-resource",
+                "/.well-known/oauth-protected-resource/mcp",
+            ]
+        )
     }
 
     static func testIteratesEveryPageExactlyOnce() async throws {
