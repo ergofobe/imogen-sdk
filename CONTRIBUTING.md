@@ -24,7 +24,7 @@ so it needs node and npm on the path alongside bun.
 ```bash
 cd typescript && bun install && bun run verify
 cd rust       && cargo test && cargo clippy --all-targets && cargo fmt --check
-cd python     && uv sync && uv run pytest && uv run ruff check
+cd python     && uv sync && uv run pytest && uv run ruff check && uv run ruff format --check .
 cd swift      && swift run ImogenSDKConformance
 cd kotlin     && ./gradlew build
 ```
@@ -32,8 +32,9 @@ cd kotlin     && ./gradlew build
 ## Consuming the TypeScript packages from a checkout
 
 `main`, `types` and the default export condition all point into `typescript/packages/*/dist`,
-which is generated and gitignored. A consumer that resolves this repository as a sibling
-checkout — `imogen-server` does, via `file:` — therefore has to build it first:
+which is generated and gitignored. A consumer that resolves this repository from a
+checkout rather than the registry — `imogen-server` does, with `file:` overrides pointing
+at the `imogen-sdk/` git submodule inside its own tree — therefore has to build it first:
 
 ```bash
 cd typescript && bun install && bun run build          # in imogen-sdk
