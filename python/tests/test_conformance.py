@@ -532,6 +532,7 @@ async def test_iterates_every_page_exactly_once(serve: Any) -> None:
 
     assert seen == ["a", "b"]
 
+
 def _oauth_responder(holder: dict[str, str]) -> Any:
     """Answers discovery, then hands back a token for whatever is exchanged.
 
