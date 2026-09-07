@@ -25,10 +25,10 @@ import {
 import endpoints from '../../../../conformance/endpoints.json' with { type: 'json' }
 import errors from '../../../../conformance/errors.json' with { type: 'json' }
 import models from '../../../../conformance/models.json' with { type: 'json' }
-import { ImogenClient } from './client.ts'
-import { ImogenError } from './errors.ts'
-import type { FetchLike } from './http.ts'
-import { OAuthClient } from './oauth.ts'
+import { ImogenClient } from './client.js'
+import { ImogenError } from './errors.js'
+import type { FetchLike } from './http.js'
+import { OAuthClient } from './oauth.js'
 
 const BASE = 'https://photos.example.test'
 

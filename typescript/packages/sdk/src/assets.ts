@@ -21,7 +21,7 @@ import {
   RESUMABLE_THRESHOLD_BYTES,
   UPLOAD_CHUNK_BYTES,
 } from '@imogen/shared'
-import type { HttpClient } from './http.ts'
+import type { HttpClient } from './http.js'
 
 export type AssetPage = { items: Asset[]; nextCursor: string | null; total: number | null }
 export type TilePage = { items: TimelineTile[]; nextCursor: string | null; total: number | null }

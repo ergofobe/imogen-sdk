@@ -31,8 +31,8 @@ export type {
   TimelineTile,
   User,
 } from '@imogen/shared'
-export * from './admin.ts'
-export { Albums } from './albums.ts'
+export * from './admin.js'
+export { Albums } from './albums.js'
 export {
   type AssetPage,
   Assets,
@@ -42,23 +42,24 @@ export {
   type TilePage,
   type UploadOptions,
   type UploadProgress,
-} from './assets.ts'
-export { Auth } from './auth.ts'
-export { ImogenClient } from './client.ts'
-export { ImogenError } from './errors.ts'
+} from './assets.js'
+export { Auth } from './auth.js'
+export { ImogenClient } from './client.js'
+export { ImogenError } from './errors.js'
 export {
   type ClientOptions,
   type FetchLike,
   HttpClient,
   type RequestOptions,
   type TokenProvider,
-} from './http.ts'
+} from './http.js'
 export {
   type AuthorizationServerMetadata,
   OAuthClient,
   type PendingAuthorization,
+  type ProtectedResourcePath,
   type StoredTokens,
-} from './oauth.ts'
-export { Pairing } from './pairing.ts'
-export { People } from './people.ts'
-export { Vault, type VaultStatus } from './vault.ts'
+} from './oauth.js'
+export { Pairing } from './pairing.js'
+export { People } from './people.js'
+export { Vault, type VaultStatus } from './vault.js'

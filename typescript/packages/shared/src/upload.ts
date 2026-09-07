@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { AssetUploadMetadata, AssetUploadResult } from './asset.ts'
+import { AssetUploadMetadata, AssetUploadResult } from './asset.js'
 
 /**
  * Resumable uploads for large files. A phone on a train should resume a 2 GB video,

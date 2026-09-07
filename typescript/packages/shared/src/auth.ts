@@ -124,9 +124,15 @@ export type TokenResponse = z.infer<typeof TokenResponse>
  * rebuilds the string from its own base URL can produce a near-miss — a stray port, a
  * trailing slash — that comes back as `invalid_target`.
  */
+/**
+ * Only `resource` is required, because RFC 9728 requires only that one. imogen's own
+ * server fills in the rest, but the other four ports all decode a document carrying
+ * nothing else, and a schema that refused one would make this the single port that
+ * cannot read a legal answer.
+ */
 export const ProtectedResourceMetadata = z.object({
   resource: z.string(),
-  authorization_servers: z.array(z.string()),
+  authorization_servers: z.array(z.string()).optional(),
   scopes_supported: z.array(z.string()).optional(),
   bearer_methods_supported: z.array(z.string()).optional(),
   resource_documentation: z.string().optional(),

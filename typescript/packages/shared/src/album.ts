@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { Asset } from './asset.ts'
+import { Asset } from './asset.js'
 
 export const Album = z.object({
   id: z.uuid(),

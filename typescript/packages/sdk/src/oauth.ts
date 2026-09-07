@@ -3,7 +3,7 @@ import type {
   ProtectedResourceMetadata,
   TokenResponse,
 } from '@imogen/shared'
-import type { FetchLike } from './http.ts'
+import type { FetchLike } from './http.js'
 
 export type AuthorizationServerMetadata = {
   issuer: string

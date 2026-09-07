@@ -5,7 +5,7 @@ import type {
   PersonUpdate,
   PersonWithPhotos,
 } from '@imogen/shared'
-import type { HttpClient } from './http.ts'
+import type { HttpClient } from './http.js'
 
 /**
  * People, as grouped by face recognition.

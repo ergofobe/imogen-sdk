@@ -6,7 +6,7 @@ import type {
   SignupRequest,
   User,
 } from '@imogen/shared'
-import type { HttpClient } from './http.ts'
+import type { HttpClient } from './http.js'
 
 export class Auth {
   constructor(private readonly http: HttpClient) {}
