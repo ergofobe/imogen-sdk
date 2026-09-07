@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { Asset } from './asset.ts'
+import { Asset } from './asset.js'
 
 /** One cluster of faces the library believes belong to the same person. */
 export const Person = z.object({

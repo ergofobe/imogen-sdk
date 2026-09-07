@@ -1,6 +1,6 @@
 import { expect, test } from 'bun:test'
-import { Assets } from './assets.ts'
-import type { HttpClient, RequestOptions } from './http.ts'
+import { Assets } from './assets.js'
+import type { HttpClient, RequestOptions } from './http.js'
 
 type RecordedCall = {
   method: string

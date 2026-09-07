@@ -26,11 +26,20 @@ jobs:
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version: 1.3.14
+      # npm, not as a package manager: the packaging test asks `npm pack` what the tarball
+      # would contain, because npm is what will build it.
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
       - run: bun install --frozen-lockfile
       - name: Lint
         run: bun run lint
       - name: Typecheck
         run: bun run typecheck
+      # The published packages are the compiled output, so a build that no longer emits is
+      # a release-blocking break even when the suite is green.
+      - name: Build
+        run: bun run build
       - name: Test
         run: bun test
 

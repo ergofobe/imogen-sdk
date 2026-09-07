@@ -12,7 +12,7 @@ import type {
   ServerSettingsUpdate,
   StorageReport,
 } from '@imogen/shared'
-import type { HttpClient } from './http.ts'
+import type { HttpClient } from './http.js'
 
 /**
  * Server administration.

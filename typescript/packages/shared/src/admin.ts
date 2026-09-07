@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { UserRole } from './auth.ts'
+import { UserRole } from './auth.js'
 
 /**
  * An account as an administrator sees it.

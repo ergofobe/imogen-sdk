@@ -1,4 +1,4 @@
-import { ImogenError } from './errors.ts'
+import { ImogenError } from './errors.js'
 
 export type TokenProvider = string | (() => string | null | Promise<string | null>)
 

@@ -6,7 +6,7 @@ import {
   TimelineBucket,
   TimelineBucketQuery,
   TimelineTile,
-} from './query.ts'
+} from './query.js'
 
 describe('AssetFilter', () => {
   test('carries every filter the timeline endpoints share', () => {

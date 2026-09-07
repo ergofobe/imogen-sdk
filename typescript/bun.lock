@@ -14,7 +14,7 @@
       "name": "@imogen/sdk",
       "version": "0.2.0",
       "dependencies": {
-        "@imogen/shared": "workspace:*",
+        "@imogen/shared": "0.2.0",
       },
     },
     "packages/shared": {

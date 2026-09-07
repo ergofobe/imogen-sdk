@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { AssetStatus, AssetType } from './asset.ts'
+import { AssetStatus, AssetType } from './asset.js'
 
 /**
  * Cursor pagination. Offsets are wrong for a timeline that grows while you scroll:
