@@ -87,7 +87,9 @@ send it twice.
 
 **OAuth without a secret.** Each port ships an OAuth 2.1 client doing authorization code
 with PKCE and RFC 7591 dynamic registration, because a client secret shipped inside a
-mobile app is not a secret.
+mobile app is not a secret. An authorization can also name the API it is for with an RFC
+8707 `resource` indicator, read from the server's RFC 9728 protected-resource metadata
+rather than assembled locally, so the token it buys is scoped to that one server.
 
 **Pairing is one gesture, not a form.** A new phone does not know which server to sign in
 to, and asking it to is the worst moment in installing a self-hosted app. So the browser,
@@ -103,8 +105,8 @@ Each port builds and tests on its own:
 
 ```bash
 cd typescript && bun install && bun run verify
-cd rust       && cargo test && cargo clippy --all-targets
-cd python     && uv sync && uv run pytest
+cd rust       && cargo test && cargo clippy --all-targets && cargo fmt --check
+cd python     && uv sync && uv run pytest && uv run ruff check && uv run ruff format --check .
 cd swift      && swift run ImogenSDKConformance
 cd kotlin     && ./gradlew build
 ```
