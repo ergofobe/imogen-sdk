@@ -5,6 +5,10 @@
     "noEmit": false,
     "rootDir": "src",
     "outDir": "dist",
+    // Inside dist, so that clearing the output clears the cache with it. Left at the
+    // package root, `tsc -b` reads a cache describing files that are no longer there,
+    // reports success and emits nothing — and prepack ships an empty package.
+    "tsBuildInfoFile": "dist/.tsbuildinfo",
     "declaration": true,
     "declarationMap": true,
     "sourceMap": true

@@ -29,6 +29,27 @@ cd swift      && swift run ImogenSDKConformance
 cd kotlin     && ./gradlew build
 ```
 
+## Consuming the TypeScript packages from a checkout
+
+`main`, `types` and the default export condition all point into `typescript/packages/*/dist`,
+which is generated and gitignored. A consumer that resolves this repository as a sibling
+checkout — `imogen-server` does, via `file:` — therefore has to build it first:
+
+```bash
+cd typescript && bun install && bun run build
+```
+
+Skipping that fails in an unhelpfully asymmetric way: the `bun` export condition still
+resolves to TypeScript source, so the consumer's tests pass while its `tsc` reports
+`Cannot find module '@imogen/sdk'`.
+
+## Bumping a version
+
+The five ports move in lockstep, and inside `typescript/` the version is written twice:
+`packages/shared/package.json` and the exact range `@imogen/sdk` pins it at. They have to
+move in the same commit — `bun install` resolves the sibling from the workspace only while
+the two agree, and looks for the range on npm when they do not.
+
 ## Changing the contract
 
 Change `conformance/` first. Every port will then fail until it is brought into line, which

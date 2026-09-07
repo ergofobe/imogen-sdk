@@ -1,5 +1,6 @@
 import { describe, expect, test } from 'bun:test'
-import { existsSync, readdirSync, readFileSync } from 'node:fs'
+import { cpSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync } from 'node:fs'
+import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 
 /**
@@ -9,7 +10,6 @@ import { join, resolve } from 'node:path'
  */
 
 const workspaceRoot = resolve(import.meta.dir, '../../..')
-const tsc = join(workspaceRoot, 'node_modules/.bin/tsc')
 
 type Manifest = {
   name: string
@@ -20,7 +20,6 @@ type Manifest = {
   exports?: unknown
   scripts?: Record<string, string>
   dependencies?: Record<string, string>
-  devDependencies?: Record<string, string>
 }
 
 const packages = ['shared', 'sdk'].map((dir) => {
@@ -39,20 +38,23 @@ function exportedPaths(node: unknown): string[] {
   return []
 }
 
-/** `files` entries are prefixes: "dist" ships everything under dist/. */
+/** Positive `files` entries are prefixes: "dist" ships everything under dist/. */
 function shippedBy(files: string[], path: string): boolean {
   const clean = path.replace(/^\.\//, '')
-  return files.some((entry) => {
-    const target = entry.replace(/^\.\//, '').replace(/\/$/, '')
-    return clean === target || clean.startsWith(`${target}/`)
-  })
+  return files
+    .filter((entry) => !entry.startsWith('!'))
+    .some((entry) => {
+      const target = entry.replace(/^\.\//, '').replace(/\/$/, '')
+      return clean === target || clean.startsWith(`${target}/`)
+    })
 }
 
-function walk(dir: string): string[] {
-  return readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
-    const full = join(dir, entry.name)
-    return entry.isDirectory() ? walk(full) : [full]
-  })
+/** What `npm pack` would put in the tarball, straight from npm. */
+function packedPaths(root: string): string[] {
+  const packed = Bun.spawnSync(['npm', 'pack', '--dry-run', '--json'], { cwd: root })
+  expect(packed.exitCode).toBe(0)
+  const entries = JSON.parse(packed.stdout.toString()) as [{ files: { path: string }[] }]
+  return entries[0].files.map((file) => file.path)
 }
 
 describe.each(packages)('$manifest.name', ({ root, manifest }) => {
@@ -96,42 +98,97 @@ describe.each(packages)('$manifest.name', ({ root, manifest }) => {
     expect(scripts.build).not.toMatch(/^echo\b/)
   })
 
-  test('emits JavaScript a plain Node consumer can import', () => {
-    // Builds into the package's own dist rather than a scratch directory, so the assertions
-    // land on exactly the files `npm pack` would put in the tarball. `tsc -b` is incremental
-    // and builds the referenced projects, so this is cheap and needs no ordering with verify.
-    const built = Bun.spawnSync([tsc, '-b', join(root, 'tsconfig.build.json')], { cwd: root })
-    expect(built.stdout.toString() + built.stderr.toString()).toBe('')
-    expect(built.exitCode).toBe(0)
-
-    const dist = join(root, 'dist')
-    expect(existsSync(join(dist, 'index.js'))).toBe(true)
-    expect(existsSync(join(dist, 'index.d.ts'))).toBe(true)
-
-    const emitted = walk(dist)
-    // Tests are not part of the published surface.
-    expect(emitted.filter((file) => file.includes('.test.'))).toEqual([])
-
-    // A '.ts' specifier resolves under bun and nowhere else. tsc rewrites them in the
-    // JavaScript emit but not in the declarations, so one reaching the output means the
-    // types are broken for every consumer that is not bun.
-    const dangling = emitted
-      .filter((file) => file.endsWith('.js') || file.endsWith('.d.ts'))
-      .filter((file) => /from '\.[^']*\.ts'/.test(readFileSync(file, 'utf8')))
-    expect(dangling).toEqual([])
-  }, 30_000)
-
   test('packs the published surface and nothing else', () => {
     // Asks npm rather than reimplementing its `files` semantics: npm is what builds the
-    // tarball, and the negation pattern that keeps the suite out of it is npm's feature.
-    const packed = Bun.spawnSync(['npm', 'pack', '--dry-run', '--json'], { cwd: root })
-    expect(packed.exitCode).toBe(0)
-    const entries = JSON.parse(packed.stdout.toString()) as [{ files: { path: string }[] }]
-    const files = entries[0].files.map((file) => file.path)
-
+    // tarball, and the negations that keep the suite and the build cache out of it are
+    // npm's feature, not ours.
+    const files = packedPaths(root)
     expect(files).toContain('dist/index.js')
     expect(files).toContain('dist/index.d.ts')
-    // src ships so the "bun" condition still resolves once published. The suite does not.
     expect(files.filter((file) => file.includes('.test.'))).toEqual([])
+    expect(files.filter((file) => file.includes('tsbuildinfo'))).toEqual([])
   }, 60_000)
 })
+
+test('a plain Node consumer can install the tarballs and import them', () => {
+  // The one check that exercises the whole chain the issue is about: prepack builds, npm
+  // packs, and a runtime that is not bun resolves the result. Everything above asserts
+  // that a file is listed somewhere; only this proves the package works.
+  const consumer = mkdtempSync(join(tmpdir(), 'imogen-consumer-'))
+  try {
+    const modules = join(consumer, 'node_modules')
+    for (const { dir, root, manifest } of packages) {
+      const packed = Bun.spawnSync(['npm', 'pack', '--pack-destination', consumer], { cwd: root })
+      expect(packed.exitCode).toBe(0)
+      const tarball = `${manifest.name.replace('@', '').replace('/', '-')}-${manifest.version}.tgz`
+      const target = join(modules, '@imogen', dir)
+      mkdirSync(target, { recursive: true })
+      const untar = Bun.spawnSync([
+        'tar',
+        '-xzf',
+        join(consumer, tarball),
+        '-C',
+        target,
+        '--strip-components=1',
+      ])
+      expect(untar.stderr.toString()).toBe('')
+      expect(untar.exitCode).toBe(0)
+    }
+    // The tarballs pin a registry version of zod that is not published here either, so the
+    // dependency is supplied from the workspace rather than installed.
+    cpSync(
+      realpathSync(join(workspaceRoot, 'packages/shared/node_modules/zod')),
+      join(modules, 'zod'),
+      {
+        recursive: true,
+      },
+    )
+    Bun.write(join(consumer, 'package.json'), '{"type":"module"}\n')
+    Bun.write(
+      join(consumer, 'consume.mjs'),
+      [
+        "import { ImogenClient } from '@imogen/sdk'",
+        "import { AssetQuery } from '@imogen/shared'",
+        "const client = new ImogenClient({ baseUrl: 'https://photos.example.test' })",
+        "if (typeof client.assets.list !== 'function') throw new Error('sdk did not wire up assets')",
+        "if (AssetQuery.parse({ limit: 5 }).limit !== 5) throw new Error('shared schema did not parse')",
+        "process.stdout.write('ok')",
+      ].join('\n'),
+    )
+
+    const ran = Bun.spawnSync(['node', join(consumer, 'consume.mjs')], { cwd: consumer })
+    expect(ran.stderr.toString()).toBe('')
+    expect(ran.stdout.toString()).toBe('ok')
+
+    // Half the package is its types, and importing at runtime does not exercise them: the
+    // declarations are what `types` points at, under the resolution a TypeScript consumer
+    // actually uses.
+    Bun.write(
+      join(consumer, 'consume.ts'),
+      [
+        "import { ImogenClient } from '@imogen/sdk'",
+        "import type { Asset } from '@imogen/shared'",
+        "export const client = new ImogenClient({ baseUrl: 'https://photos.example.test' })",
+        'export const id = (asset: Asset): string => asset.id',
+      ].join('\n'),
+    )
+    Bun.write(
+      join(consumer, 'tsconfig.json'),
+      JSON.stringify({
+        compilerOptions: {
+          module: 'nodenext',
+          moduleResolution: 'nodenext',
+          strict: true,
+          noEmit: true,
+          skipLibCheck: true,
+        },
+        files: ['consume.ts'],
+      }),
+    )
+    const typed = Bun.spawnSync([join(workspaceRoot, 'node_modules/.bin/tsc'), '-p', consumer])
+    expect(typed.stdout.toString() + typed.stderr.toString()).toBe('')
+    expect(typed.exitCode).toBe(0)
+  } finally {
+    rmSync(consumer, { recursive: true, force: true })
+  }
+}, 120_000)
