@@ -40,8 +40,10 @@ jobs:
       # a release-blocking break even when the suite is green.
       - name: Build
         run: bun run build
+      # `bun run test`, not `bun test`: the script scopes the run to packages/, and the bare
+      # command would scan live/ too — which throws without a server on the other end.
       - name: Test
-        run: bun test
+        run: bun run test
 
   rust:
     runs-on: ubuntu-latest
@@ -115,6 +117,7 @@ jobs:
   # the server image of the last release. See CONTRIBUTING.md for what a red run means.
   forward-compat:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     services:
       postgres:
         # pgvector, not stock postgres: the server's own migrations reach for the extension
@@ -149,6 +152,8 @@ jobs:
           # disagree by exactly one character, and `v0.3.0` is `manifest unknown`.
           echo "image=ghcr.io/ergofobe/imogen-server:${tag#v}" >> "$GITHUB_OUTPUT"
           echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          # Resolving at run time means the run is the only record of what it tested.
+          echo "Checked against imogen-server $tag" >> "$GITHUB_STEP_SUMMARY"
 
       - name: Start ${{ steps.server.outputs.tag }}
         run: |

@@ -72,6 +72,15 @@ async function authorize(resource?: string): Promise<string> {
       `The authorization endpoint returned ${approved.status} with no Location header`,
     )
   }
+  // Without a session the server bounces to its own login page, and the relative path that
+  // comes back would surface three frames later as a bare `TypeError: Invalid URL`. This
+  // job is only worth having if a red run reads clearly.
+  if (callbackUrl.startsWith('/')) {
+    throw new Error(
+      `The authorization endpoint redirected to ${callbackUrl} instead of ${redirectUri}: ` +
+        'the sign-up session was not carried, so there was nobody to approve as.',
+    )
+  }
   const tokens = await oauth.completeAuthorization(pending, callbackUrl)
   return tokens.access_token
 }
@@ -119,10 +128,11 @@ describe('the last released server', () => {
     expect(api.resource).toBeString()
     expect(mcp.resource).toBeString()
 
-    // Deliberately not asserted: that the two name *different* resources. Server 0.3.0
-    // answers both paths with the site root, and per-surface identifiers landed after it.
-    // Requiring them to differ would require a server newer than the one users are on,
-    // which is the breaking change this suite exists to catch rather than commit.
+    // Deliberately not asserted: that the two name *different* resources. Per-surface
+    // identifiers arrived partway through the server's history, and a release old enough
+    // to answer both paths with the site root is still one users are on. Requiring them to
+    // differ would require a newer server — the breaking change this suite exists to catch
+    // rather than commit.
   })
 })
 
@@ -134,22 +144,31 @@ describe('an authorization this client can complete', () => {
     expect(await tokenClient(accessToken).assets.list()).toMatchObject({ items: [] })
   })
 
-  // Both documents, because the identifier is the thing most likely to strand a client on
-  // an older server: `resource` has to be the value that server published, not one the
-  // client assembled from its own base URL. Against 0.3.0 the MCP document answers with
-  // the site root, so a client that built `${base}/mcp` for itself would be naming a
-  // resource this server never heard of. Reading it back is what keeps that from happening.
-  for (const [surface, path] of [
-    ['the API', ''],
-    ['MCP', '/mcp'],
-  ] as const) {
-    test(`naming the resource ${surface} published, which an older server may ignore`, async () => {
-      const { resource } = await oauth.discoverProtectedResource(path)
+  test('naming the resource the API published', async () => {
+    const { resource } = await oauth.discoverProtectedResource()
 
-      const accessToken = await authorize(resource)
+    const accessToken = await authorize(resource)
 
-      expect(accessToken).toBeString()
-      expect(await tokenClient(accessToken).assets.list()).toMatchObject({ items: [] })
-    })
-  }
+    expect(accessToken).toBeString()
+    expect(await tokenClient(accessToken).assets.list()).toMatchObject({ items: [] })
+  })
+
+  // The MCP identifier matters here even though this repository has no MCP client: it is
+  // the value most likely to strand a client on an older server. `resource` has to be what
+  // that server published, not something the client assembled out of its own base URL —
+  // a server old enough to answer both paths with the site root would reject `${base}/mcp`
+  // as a resource it never heard of. Reading it back is what keeps that from happening.
+  test('naming the resource MCP published', async () => {
+    const { resource } = await oauth.discoverProtectedResource('/mcp')
+
+    const accessToken = await authorize(resource)
+
+    // Where this stops: the token is issued, and that is the whole forward-compatibility
+    // claim. Not asserted — that it then works at the REST API. A server that enforces
+    // binding is *right* to refuse an MCP-bound token there, and imogen-server's
+    // sdk-contract.test.ts asserts exactly that refusal on purpose. Reaching for a read
+    // here would assert the negation of the server's own contract, and go red on the
+    // release that implements it.
+    expect(accessToken).toBeString()
+  })
 })

@@ -99,24 +99,44 @@ release at run time, starts that image against a Postgres service container, and
 protected-resource documents, an authorization with and without a `resource`, the token
 exchange, and one authenticated read.
 
-**A red run is not a bug in the test.** It means the change on this branch needs a server
-change to function — which makes it a breaking change, and its PR has to say so. The rule
-being enforced is that the SDK may only *add*: a new endpoint is called on request rather
-than unconditionally, a new request field is optional and ignorable by a server that has
-never heard of it, and a new response field is optional in every port's model.
+**Read a red run before rewriting anything.** It fails for four reasons that are not about
+your change: ghcr was unreachable; a server release was published minutes ago and its image
+is still building, so the pull 404s; postgres or the container did not come up inside the
+wait; or a server release changed what it enforces, in which case the test's expectations
+are what moved. The job prints the tag it resolved into the run summary — start there.
+
+Once those are out, a red run means the change on this branch **needs a server change to
+function**, which makes it a breaking change, and its PR has to say so. The rule being
+enforced is that the SDK may only *add*: a new endpoint is called on request rather than
+unconditionally, a new request field is optional and ignorable by a server that has never
+heard of it, and a new response field is optional in every port's model.
 
 The job checks that a released server does not *choke* on something new, never that it
 *honours* it — ignoring an unknown field is exactly what makes a change additive. Whether
 the current server gives a new field meaning is `sdk-contract.test.ts`'s question, on the
 other side of the split.
 
+What it covers is the auth handshake and a single authenticated read, and nothing else:
+timeline, albums, upload, pairing and vault are not exercised, and `assets.list()` is called
+with no query, so a new optional request parameter would never reach a released server. Add
+to this file when you add surface that a released server has to tolerate — nothing forces
+you to, so the cover it gives will otherwise quietly narrow as the SDK grows.
+
 To run it against a server yourself:
 
 ```bash
-docker run -d --name imogen-server --network host \
-  -e DATABASE_URL=postgres://imogen:imogen@localhost:5432/imogen \
+docker network create imogen-live
+docker run -d --name imogen-live-db --network imogen-live \
+  -e POSTGRES_USER=imogen -e POSTGRES_PASSWORD=imogen -e POSTGRES_DB=imogen \
+  pgvector/pgvector:pg17
+
+# The published images are amd64-only, so Apple Silicon needs --platform and emulation.
+# Derived, not typed: ghcr tags carry no `v` and the release moves without telling you.
+docker run -d --name imogen-live --network imogen-live --platform linux/amd64 -p 3000:3000 \
+  -e DATABASE_URL=postgres://imogen:imogen@imogen-live-db:5432/imogen \
   -e IMOGEN_PUBLIC_URL=http://localhost:3000 \
-  ghcr.io/ergofobe/imogen-server:0.3.0        # ghcr tags carry no `v`; git tags do
+  "ghcr.io/ergofobe/imogen-server:$(gh release view --repo ergofobe/imogen-server \
+    --json tagName -q '.tagName' | sed 's/^v//')"
 
 cd typescript && IMOGEN_SERVER_URL=http://localhost:3000 bun run test:live
 ```
