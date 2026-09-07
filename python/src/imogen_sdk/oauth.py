@@ -12,6 +12,7 @@ import secrets
 import time
 from collections.abc import Sequence
 from dataclasses import dataclass
+from typing import Literal
 from urllib.parse import parse_qs, urlencode, urlparse
 
 import httpx
@@ -22,10 +23,14 @@ from .models import (
     ClientRegistrationResponse,
     PairingClaim,
     PairingClaimRequest,
+    ProtectedResourceMetadata,
     TokenResponse,
 )
 
 __all__ = ["OAuthClient", "PairedDevice", "PendingAuthorization", "StoredTokens"]
+
+#: A resource the server publishes a protected-resource document for: the REST API, or MCP.
+ProtectedResourcePath = Literal["", "/mcp"]
 
 
 @dataclass(frozen=True)
@@ -37,6 +42,11 @@ class PendingAuthorization:
     state: str
     redirect_uri: str
     client_id: str
+    #: The RFC 8707 resource this authorization asked for, or None for a token valid at
+    #: every surface. Carried here rather than passed again at the exchange because the
+    #: server refuses a token request naming a resource the code did not record: the two
+    #: halves cannot disagree if only one of them holds it.
+    resource: str | None = None
 
 
 @dataclass(frozen=True)
@@ -96,6 +106,22 @@ class OAuthClient:
         self._metadata = AuthorizationServerMetadata.model_validate(response.json())
         return self._metadata
 
+    async def discover_protected_resource(
+        self, path: ProtectedResourcePath = ""
+    ) -> ProtectedResourceMetadata:
+        """RFC 9728: the document describing one resource this server protects.
+
+        Read the identifier to bind a token to from ``resource`` here rather than
+        building it — see :class:`~imogen_sdk.models.ProtectedResourceMetadata`.
+        """
+        response = await self._client.get(
+            f"{self.base_url}/.well-known/oauth-protected-resource{path}"
+        )
+        if not response.is_success:
+            raise OAuthError("Could not read the protected resource metadata")
+
+        return ProtectedResourceMetadata.model_validate(response.json())
+
     async def register(
         self,
         name: str,
@@ -124,22 +150,32 @@ class OAuthClient:
         client_id: str,
         redirect_uri: str,
         scopes: Sequence[str] = DEFAULT_SCOPES,
+        resource: str | None = None,
     ) -> PendingAuthorization:
+        """Build the authorization URL, and the state needed to complete the exchange.
+
+        ``resource`` is RFC 8707. When given, the token is bound to that one resource and
+        is refused everywhere else; take the value from
+        :meth:`discover_protected_resource`. Leave it None for a token valid at every
+        surface, which is what pairing has to use — the claim endpoint mints its code
+        server-side and cannot record a resource.
+        """
         metadata = await self.discover()
         code_verifier = _random_string(32)
         state = _random_string(16)
 
-        query = urlencode(
-            {
-                "response_type": "code",
-                "client_id": client_id,
-                "redirect_uri": redirect_uri,
-                "scope": " ".join(scopes),
-                "state": state,
-                "code_challenge": _s256(code_verifier),
-                "code_challenge_method": "S256",
-            }
-        )
+        params = {
+            "response_type": "code",
+            "client_id": client_id,
+            "redirect_uri": redirect_uri,
+            "scope": " ".join(scopes),
+            "state": state,
+            "code_challenge": _s256(code_verifier),
+            "code_challenge_method": "S256",
+        }
+        if resource is not None:
+            params["resource"] = resource
+        query = urlencode(params)
         separator = "&" if urlparse(metadata.authorization_endpoint).query else "?"
 
         return PendingAuthorization(
@@ -148,6 +184,7 @@ class OAuthClient:
             state=state,
             redirect_uri=redirect_uri,
             client_id=client_id,
+            resource=resource,
         )
 
     async def complete_authorization(
@@ -167,15 +204,16 @@ class OAuthClient:
         if "code" not in params:
             raise OAuthError("The callback carried no authorization code")
 
-        return await self._exchange(
-            {
-                "grant_type": "authorization_code",
-                "client_id": pending.client_id,
-                "code": params["code"],
-                "code_verifier": pending.code_verifier,
-                "redirect_uri": pending.redirect_uri,
-            }
-        )
+        exchange = {
+            "grant_type": "authorization_code",
+            "client_id": pending.client_id,
+            "code": params["code"],
+            "code_verifier": pending.code_verifier,
+            "redirect_uri": pending.redirect_uri,
+        }
+        if pending.resource is not None:
+            exchange["resource"] = pending.resource
+        return await self._exchange(exchange)
 
     async def pair(
         self,

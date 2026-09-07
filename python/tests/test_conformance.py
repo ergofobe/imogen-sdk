@@ -10,6 +10,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 from typing import Any
+from urllib.parse import parse_qs, urlparse
 
 import pytest
 
@@ -36,6 +37,7 @@ from imogen_sdk import (
     ImogenError,
     LibraryStats,
     LoginRequest,
+    OAuthClient,
     PairingClaim,
     PairingClaimRequest,
     PairingStatus,
@@ -44,6 +46,7 @@ from imogen_sdk import (
     Person,
     PersonUpdate,
     ProfileUpdate,
+    ProtectedResourceMetadata,
     QueueHealth,
     ServerSettings,
     ServerSettingsUpdate,
@@ -220,6 +223,12 @@ async def invoke(client: ImogenClient, key: str, big_file: Path, small_file: Pat
         "oauth.discover": lambda: client.http.send(
             "GET", "/.well-known/oauth-authorization-server"
         ),
+        "oauth.protectedResource": lambda: client.http.send(
+            "GET", "/.well-known/oauth-protected-resource"
+        ),
+        "oauth.protectedResourceMcp": lambda: client.http.send(
+            "GET", "/.well-known/oauth-protected-resource/mcp"
+        ),
     }
 
     call = calls.get(key)
@@ -301,6 +310,7 @@ MODEL_TYPES = {
     "storageReport": StorageReport,
     "serverSettings": ServerSettings,
     "tokenResponse": TokenResponse,
+    "protectedResourceMetadata": ProtectedResourceMetadata,
     "pairingTicket": PairingTicket,
     "pairingStatusUnclaimed": PairingStatus,
     "pairingStatusClaimed": PairingStatus,
@@ -521,3 +531,84 @@ async def test_iterates_every_page_exactly_once(serve: Any) -> None:
         seen = [asset.id async for asset in client.assets.iterate(AssetQuery())]
 
     assert seen == ["a", "b"]
+
+def _oauth_responder(holder: dict[str, str]) -> Any:
+    """Answers discovery, then hands back a token for whatever is exchanged.
+
+    The stub's port is only known once it is listening, so the endpoints it advertises
+    are read out of ``holder`` at request time rather than captured when it is built.
+    """
+
+    def responder(request: Any, _index: int) -> Reply:
+        base = holder["base_url"]
+        if request.path == "/.well-known/oauth-authorization-server":
+            return Reply(
+                body=json.dumps(
+                    {
+                        "issuer": base,
+                        "authorization_endpoint": f"{base}/oauth/authorize",
+                        "token_endpoint": f"{base}/oauth/token",
+                    }
+                )
+            )
+        return Reply(
+            body=json.dumps(
+                {
+                    "access_token": "at",
+                    "token_type": "Bearer",
+                    "expires_in": 3600,
+                    "scope": "library:read",
+                }
+            )
+        )
+
+    return responder
+
+
+async def test_the_resource_indicator_travels_on_both_legs_or_neither(
+    serve: Any, endpoints: Any
+) -> None:
+    for case in endpoints["oauthResourceIndicator"]["cases"]:
+        holder: dict[str, str] = {}
+        stub = serve(_oauth_responder(holder))
+        holder["base_url"] = stub.base_url
+
+        oauth = OAuthClient(stub.base_url)
+        try:
+            pending = await oauth.begin_authorization(
+                "CLIENT", "app://callback", ["library:read"], case["resource"]
+            )
+            query = parse_qs(urlparse(pending.authorization_url).query)
+            got = query.get("resource", [None])[0]
+            assert got == case["expectAuthorizationParam"], case["name"]
+
+            before = stub.call_count
+            await oauth.complete_authorization(
+                pending, f"app://callback?code=CODE&state={pending.state}"
+            )
+            body = parse_qs(stub.calls[before].body.decode())
+            assert body.get("resource", [None])[0] == case["expectTokenParam"], case["name"]
+        finally:
+            await oauth.aclose()
+
+
+async def test_each_resource_identifier_is_read_from_its_document(serve: Any) -> None:
+    def responder(request: Any, _index: int) -> Reply:
+        return Reply(
+            body=json.dumps(
+                {"resource": f"https://photos.example.test{request.path.split('resource')[-1]}"}
+            )
+        )
+
+    stub = serve(responder)
+    oauth = OAuthClient(stub.base_url)
+    try:
+        await oauth.discover_protected_resource()
+        await oauth.discover_protected_resource("/mcp")
+    finally:
+        await oauth.aclose()
+
+    assert [c.path for c in stub.calls] == [
+        "/.well-known/oauth-protected-resource",
+        "/.well-known/oauth-protected-resource/mcp",
+    ]

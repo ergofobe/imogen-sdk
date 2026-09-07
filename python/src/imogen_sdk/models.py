@@ -67,6 +67,7 @@ __all__ = [
     "PersonUpdate",
     "PersonWithPhotos",
     "ProfileUpdate",
+    "ProtectedResourceMetadata",
     "QueueHealth",
     "RESUMABLE_THRESHOLD_BYTES",
     "SCOPE_DESCRIPTIONS",
@@ -592,6 +593,22 @@ class AuthorizationServerMetadata(Wire):
     revocation_endpoint: str = ""
     scopes_supported: list[str] = Field(default_factory=list)
     code_challenge_methods_supported: list[str] = Field(default_factory=list)
+
+
+class ProtectedResourceMetadata(Wire):
+    """RFC 9728 protected resource metadata.
+
+    ``resource`` is the identifier to echo back as the RFC 8707 ``resource`` parameter.
+    The server compares it against the single spelling it publishes here, so a client
+    that rebuilds the string from its own base URL can produce a near-miss — a stray
+    port, a trailing slash — that comes back as ``invalid_target``.
+    """
+
+    resource: str
+    authorization_servers: list[str] = Field(default_factory=list)
+    scopes_supported: list[str] = Field(default_factory=list)
+    bearer_methods_supported: list[str] = Field(default_factory=list)
+    resource_documentation: str = ""
 
 
 # --- pairing ---

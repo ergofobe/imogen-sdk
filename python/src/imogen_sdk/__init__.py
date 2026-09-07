@@ -15,7 +15,14 @@ from .errors import ImogenError
 from .http import HttpClient, TokenProvider, backoff_delay
 from .models import *  # noqa: F403 — the contract is the public surface.
 from .models import __all__ as _model_names
-from .oauth import OAuthClient, OAuthError, PairedDevice, PendingAuthorization, StoredTokens
+from .oauth import (
+    OAuthClient,
+    OAuthError,
+    PairedDevice,
+    PendingAuthorization,
+    ProtectedResourcePath,
+    StoredTokens,
+)
 from .resources import (
     Admin,
     Albums,
@@ -44,6 +51,7 @@ __all__ = [
     "PairedDevice",
     "Pairing",
     "PendingAuthorization",
+    "ProtectedResourcePath",
     "People",
     "StoredTokens",
     "TokenProvider",
