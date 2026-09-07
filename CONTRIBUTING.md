@@ -86,6 +86,70 @@ drives it through the published TypeScript client.
 
 If you change the wire format, both repositories need the change.
 
+## Staying usable on the server people are actually running
+
+Both of those check a *new server* against a *known client*. Users hit the opposite: they
+update apps long before they update servers, and a store release cannot be recalled. So a
+client built from this branch has to work against the server release that is already out
+there.
+
+That is what the `forward-compat` job in CI checks. It resolves the latest `imogen-server`
+release at run time, starts that image against a Postgres service container, and runs
+`typescript/live/forward-compat.test.ts` against it over real HTTP: discovery, both RFC 9728
+protected-resource documents, an authorization with and without a `resource`, the token
+exchange, and an authenticated read on each of the two tokens that carry one.
+
+**Read a red run before rewriting anything.** It fails for four reasons that are not about
+your change: ghcr was unreachable; a server release was published minutes ago and its image
+is still building, so the pull 404s; postgres or the container did not come up inside the
+wait; or a server release changed what it enforces, in which case the test's expectations
+are what moved. The job prints the tag it resolved into the run summary — start there.
+
+Once those are out, a red run means the change on this branch **needs a server change to
+function**, which makes it a breaking change, and its PR has to say so. The rule being
+enforced is that the SDK may only *add*: a new endpoint is called on request rather than
+unconditionally, a new request field is optional and ignorable by a server that has never
+heard of it, and a new response field is optional in every port's model.
+
+The job checks that a released server does not *choke* on something new, never that it
+*honours* it — ignoring an unknown field is exactly what makes a change additive. Whether
+the current server gives a new field meaning is `sdk-contract.test.ts`'s question, on the
+other side of the split.
+
+What it covers is the auth handshake and a couple of authenticated reads, and nothing else:
+timeline, albums, upload, pairing and vault are not exercised, and `assets.list()` is called
+with no query, so a new optional request parameter would never reach a released server. Add
+to this file when you add surface that a released server has to tolerate — nothing forces
+you to, so the cover it gives will otherwise quietly narrow as the SDK grows.
+
+To run it against a server yourself:
+
+```bash
+docker network create imogen-live
+docker run -d --name imogen-live-db --network imogen-live \
+  -e POSTGRES_USER=imogen -e POSTGRES_PASSWORD=imogen -e POSTGRES_DB=imogen \
+  pgvector/pgvector:pg17
+
+# Not optional: the image migrates on the way up and its migration connects exactly once,
+# so a server started against an initdb still in progress exits before it ever serves.
+until docker exec imogen-live-db pg_isready -U imogen -d imogen; do sleep 1; done
+
+# The published images are amd64-only, so Apple Silicon needs --platform and emulation.
+# Derived, not typed: ghcr tags carry no `v` and the release moves without telling you.
+docker run -d --name imogen-live --network imogen-live --platform linux/amd64 -p 3000:3000 \
+  -e DATABASE_URL=postgres://imogen:imogen@imogen-live-db:5432/imogen \
+  -e IMOGEN_PUBLIC_URL=http://localhost:3000 \
+  "ghcr.io/ergofobe/imogen-server:$(gh release view --repo ergofobe/imogen-server \
+    --json tagName -q '.tagName' | sed 's/^v//')"
+
+cd typescript && IMOGEN_SERVER_URL=http://localhost:3000 bun run test:live
+```
+
+`bun run verify` does not run it — the default suite is scoped to `packages/`, because a
+suite that needs a server on the other end has no business failing on a laptop that has
+none. For the same reason the live file refuses to run without `IMOGEN_SERVER_URL` rather
+than skipping: a green run that quietly tested nothing is worse than a red one.
+
 ## Style
 
 Match the surrounding code. Each port is written in its own language's idiom rather than

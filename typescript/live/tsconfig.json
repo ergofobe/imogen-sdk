@@ -1,0 +1,12 @@
+{
+  "extends": "../tsconfig.base.json",
+  "compilerOptions": {
+    // Same reason as packages/sdk: `exports` points both packages at build output, so
+    // without these typechecking this directory would require having built them first.
+    "paths": {
+      "@imogen/sdk": ["../packages/sdk/src/index.ts"],
+      "@imogen/shared": ["../packages/shared/src/index.ts"]
+    }
+  },
+  "include": ["**/*.ts"]
+}
