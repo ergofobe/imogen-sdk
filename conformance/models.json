@@ -521,6 +521,15 @@
       "resource_documentation": "https://photos.example.test/api/v1/docs"
     }
   },
+  "protectedResourceMetadataMinimal": {
+    "$comment": "RFC 9728 requires only `resource`. imogen's own server sends all five fields, so nothing here would notice a port that demanded them — until it met a server that did not. Every port decodes this one, which is what keeps the five from quietly disagreeing about what a legal document is.",
+    "payload": {
+      "resource": "https://photos.example.test"
+    },
+    "assert": {
+      "resource": "https://photos.example.test"
+    }
+  },
   "pairingTicket": {
     "payload": {
       "id": "6f8b0f4e-4f7a-4a2f-9d3e-0b4d2c1a7e55",

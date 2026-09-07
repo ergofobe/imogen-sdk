@@ -458,6 +458,7 @@ fn models_decode_as_the_contract_says() {
     check_model::<ServerSettings>("serverSettings");
     check_model::<TokenResponse>("tokenResponse");
     check_model::<ProtectedResourceMetadata>("protectedResourceMetadata");
+    check_model::<ProtectedResourceMetadata>("protectedResourceMetadataMinimal");
     check_model::<PairingTicket>("pairingTicket");
     check_model::<PairingStatus>("pairingStatusUnclaimed");
     check_model::<PairingStatus>("pairingStatusClaimed");

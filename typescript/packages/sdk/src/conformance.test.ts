@@ -343,6 +343,7 @@ describe('models decode as the contract says', () => {
     serverSettings: ServerSettings,
     tokenResponse: TokenResponse,
     protectedResourceMetadata: ProtectedResourceMetadata,
+    protectedResourceMetadataMinimal: ProtectedResourceMetadata,
   }
 
   function at(value: unknown, path: string): unknown {

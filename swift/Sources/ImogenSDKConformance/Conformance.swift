@@ -307,6 +307,7 @@ enum Conformance {
         try check(ServerSettings.self, "serverSettings")
         try check(TokenResponse.self, "tokenResponse")
         try check(ProtectedResourceMetadata.self, "protectedResourceMetadata")
+        try check(ProtectedResourceMetadata.self, "protectedResourceMetadataMinimal")
         try check(PairingTicket.self, "pairingTicket")
         try check(PairingStatus.self, "pairingStatusUnclaimed")
         try check(PairingStatus.self, "pairingStatusClaimed")

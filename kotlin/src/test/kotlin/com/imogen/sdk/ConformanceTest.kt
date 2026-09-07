@@ -316,6 +316,7 @@ class ConformanceTest {
         check<ServerSettings>("serverSettings")
         check<TokenResponse>("tokenResponse")
         check<ProtectedResourceMetadata>("protectedResourceMetadata")
+        check<ProtectedResourceMetadata>("protectedResourceMetadataMinimal")
         check<PairingTicket>("pairingTicket")
         check<PairingStatus>("pairingStatusUnclaimed")
         check<PairingStatus>("pairingStatusClaimed")

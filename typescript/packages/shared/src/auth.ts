@@ -123,12 +123,11 @@ export type TokenResponse = z.infer<typeof TokenResponse>
  * server compares it against the single spelling it publishes here, so a client that
  * rebuilds the string from its own base URL can produce a near-miss — a stray port, a
  * trailing slash — that comes back as `invalid_target`.
- */
-/**
+ *
  * Only `resource` is required, because RFC 9728 requires only that one. imogen's own
- * server fills in the rest, but the other four ports all decode a document carrying
- * nothing else, and a schema that refused one would make this the single port that
- * cannot read a legal answer.
+ * server fills in the rest, but a schema that refused a barer document would make this
+ * the single port that cannot read a legal answer — which is what the contract's
+ * `protectedResourceMetadataMinimal` fixture holds all five ports to.
  */
 export const ProtectedResourceMetadata = z.object({
   resource: z.string(),

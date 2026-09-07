@@ -311,6 +311,7 @@ MODEL_TYPES = {
     "serverSettings": ServerSettings,
     "tokenResponse": TokenResponse,
     "protectedResourceMetadata": ProtectedResourceMetadata,
+    "protectedResourceMetadataMinimal": ProtectedResourceMetadata,
     "pairingTicket": PairingTicket,
     "pairingStatusUnclaimed": PairingStatus,
     "pairingStatusClaimed": PairingStatus,
