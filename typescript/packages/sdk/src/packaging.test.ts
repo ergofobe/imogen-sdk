@@ -13,6 +13,7 @@ const tsc = join(workspaceRoot, 'node_modules/.bin/tsc')
 
 type Manifest = {
   name: string
+  version: string
   main?: string
   types?: string
   files?: string[]
@@ -61,6 +62,19 @@ describe.each(packages)('$manifest.name', ({ root, manifest }) => {
     // manifest on the registry that no installer can satisfy.
     const deps = Object.entries(manifest.dependencies ?? {})
     expect(deps.filter(([, range]) => range.startsWith('workspace:'))).toEqual([])
+  })
+
+  test('pins its workspace siblings to a version that exists', () => {
+    // The exact pin is what makes the manifest publishable, and it is also what can go
+    // stale: bumping shared without bumping this range would publish an sdk asking for a
+    // version nobody released.
+    const siblings = Object.entries(manifest.dependencies ?? {}).filter(([dep]) =>
+      dep.startsWith('@imogen/'),
+    )
+    for (const [dep, range] of siblings) {
+      const sibling = packages.find((pkg) => pkg.manifest.name === dep)
+      expect(sibling?.manifest.version).toBe(range)
+    }
   })
 
   test('ships every path it advertises', () => {
