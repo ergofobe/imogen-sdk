@@ -1,6 +1,6 @@
 import { expect, test } from 'bun:test'
-import type { HttpClient, RequestOptions } from './http.ts'
-import { Vault } from './vault.ts'
+import type { HttpClient, RequestOptions } from './http.js'
+import { Vault } from './vault.js'
 
 type RecordedCall = { method: string; path: string; query?: Record<string, unknown> }
 

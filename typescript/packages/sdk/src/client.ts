@@ -1,11 +1,11 @@
-import { Admin } from './admin.ts'
-import { Albums } from './albums.ts'
-import { Assets } from './assets.ts'
-import { Auth } from './auth.ts'
-import { type ClientOptions, HttpClient } from './http.ts'
-import { Pairing } from './pairing.ts'
-import { People } from './people.ts'
-import { Vault } from './vault.ts'
+import { Admin } from './admin.js'
+import { Albums } from './albums.js'
+import { Assets } from './assets.js'
+import { Auth } from './auth.js'
+import { type ClientOptions, HttpClient } from './http.js'
+import { Pairing } from './pairing.js'
+import { People } from './people.js'
+import { Vault } from './vault.js'
 
 /**
  * The imogen client.

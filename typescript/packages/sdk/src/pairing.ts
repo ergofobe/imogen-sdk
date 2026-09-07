@@ -4,7 +4,7 @@ import type {
   PairingStatus,
   PairingTicket,
 } from '@imogen/shared'
-import type { HttpClient } from './http.ts'
+import type { HttpClient } from './http.js'
 
 /**
  * Handing a device an account without making anybody type a hostname.

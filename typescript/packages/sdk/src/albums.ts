@@ -8,8 +8,8 @@ import type {
   ShareLink,
   ShareLinkCreate,
 } from '@imogen/shared'
-import { selectionBody } from './assets.ts'
-import type { HttpClient } from './http.ts'
+import { selectionBody } from './assets.js'
+import type { HttpClient } from './http.js'
 
 export class Albums {
   constructor(private readonly http: HttpClient) {}

@@ -1,6 +1,6 @@
 import type { AssetSelection, TimelineBucket, TimelineBucketQuery } from '@imogen/shared'
-import { type AssetPage, selectionBody, type TilePage } from './assets.ts'
-import type { HttpClient } from './http.ts'
+import { type AssetPage, selectionBody, type TilePage } from './assets.js'
+import type { HttpClient } from './http.js'
 
 export type VaultStatus = {
   configured: boolean
