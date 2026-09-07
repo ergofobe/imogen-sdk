@@ -514,9 +514,14 @@ enum Conformance {
     /// `URLComponents` is no help here: assigning a form body to `query` leaves the
     /// percent-encoding in place rather than resolving it, so `resource` comes back as
     /// `https%3A%2F%2F…` and never matches the fixture.
+    /// `omittingEmptySubsequences: false`, because `resource=` is not the same as no
+    /// resource: the server reads an empty one as `invalid_target`, and the default would
+    /// collapse `"resource="` to a single part and report it as absent — discarding
+    /// exactly the mistake the null case exists to catch.
     static func formValue(_ body: String, _ name: String) -> String? {
         for pair in body.split(separator: "&") {
-            let parts = pair.split(separator: "=", maxSplits: 1)
+            let parts = pair.split(
+                separator: "=", maxSplits: 1, omittingEmptySubsequences: false)
             guard parts.count == 2, parts[0] == name else { continue }
             return String(parts[1]).removingPercentEncoding
         }
