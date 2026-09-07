@@ -847,51 +847,83 @@ async fn each_resource_identifier_is_read_from_its_document() {
     );
 }
 
-/// Pairing must stay unbound, and the reason is not visible from the call site.
+/// A paired device binds its token by naming the resource on the claim.
 ///
-/// `/api/v1/pairing/claim` mints its authorization code server-side and cannot record a
-/// resource, so a token request naming one is refused — every paired device breaks at
-/// once. Nothing in `pair` itself says so, which is why this is pinned here: pushing
-/// `resource` down into the shared `exchange` helper would do it silently.
+/// The reason is not visible from the call site: the claim is where the code is minted,
+/// so it is the only leg that can record a resource, and the exchange has to echo what
+/// was recorded or the server answers invalid_target. Pinned here because pushing
+/// `resource` down into the shared `exchange` helper would get one leg and not the other.
 #[tokio::test]
-async fn pairing_names_no_resource() {
-    let base: Arc<Mutex<String>> = Arc::new(Mutex::new(String::new()));
-    let advertised = base.clone();
+async fn the_pairing_resource_indicator_travels_on_both_legs_or_neither() {
+    let endpoints = fixture(ENDPOINTS);
 
-    let stub = stub::start(move |request, _index| {
-        let base = advertised.lock().unwrap().clone();
-        match request.path.as_str() {
-            "/.well-known/oauth-authorization-server" => Reply::json(format!(
-                r#"{{"issuer":"{base}","authorization_endpoint":"{base}/oauth/authorize","token_endpoint":"{base}/oauth/token","registration_endpoint":"{base}/oauth/register"}}"#
-            )),
-            "/oauth/register" => Reply::json(r#"{"client_id":"CLIENT"}"#),
-            "/api/v1/pairing/claim" => Reply::json(
-                r#"{"code":"ac_x","redirectUri":"imogen://oauth","scope":"library:read"}"#,
-            ),
-            _ => Reply::json(
-                r#"{"access_token":"at","token_type":"Bearer","expires_in":3600,"scope":"library:read"}"#,
-            ),
+    for case in endpoints["pairingResourceIndicator"]["cases"]
+        .as_array()
+        .expect("the contract names pairing resource indicator cases")
+    {
+        let name = case["name"].as_str().unwrap();
+        let resource = case["resource"].as_str();
+
+        let base: Arc<Mutex<String>> = Arc::new(Mutex::new(String::new()));
+        let advertised = base.clone();
+
+        let stub = stub::start(move |request, _index| {
+            let base = advertised.lock().unwrap().clone();
+            match request.path.as_str() {
+                "/.well-known/oauth-authorization-server" => Reply::json(format!(
+                    r#"{{"issuer":"{base}","authorization_endpoint":"{base}/oauth/authorize","token_endpoint":"{base}/oauth/token","registration_endpoint":"{base}/oauth/register"}}"#
+                )),
+                "/oauth/register" => Reply::json(r#"{"client_id":"CLIENT"}"#),
+                "/api/v1/pairing/claim" => Reply::json(
+                    r#"{"code":"ac_x","redirectUri":"imogen://oauth","scope":"library:read"}"#,
+                ),
+                _ => Reply::json(
+                    r#"{"access_token":"at","token_type":"Bearer","expires_in":3600,"scope":"library:read"}"#,
+                ),
+            }
+        })
+        .await;
+        *base.lock().unwrap() = stub.base_url.clone();
+
+        let oauth = OAuthClient::new(&stub.base_url);
+        oauth
+            .pair(
+                "imog_pair_x",
+                "A Device",
+                "imogen://oauth",
+                None,
+                None,
+                resource,
+            )
+            .await
+            .unwrap_or_else(|error| panic!("{name}: pairing completes: {error}"));
+
+        let calls = stub.calls();
+
+        let claim = calls
+            .iter()
+            .find(|c| c.path == "/api/v1/pairing/claim")
+            .unwrap_or_else(|| panic!("{name}: pairing did not reach the claim endpoint"));
+        let claimed: Value = serde_json::from_slice(&claim.body).expect("the claim body is JSON");
+        // A null is not the same as an absent key: the request schema refuses one, so the
+        // unbound case asserts the field is gone rather than merely falsy.
+        assert_eq!(
+            claimed.get("resource").and_then(Value::as_str),
+            case["expectClaimField"].as_str(),
+            "{name}: the claim"
+        );
+
+        let exchanges: Vec<_> = calls.iter().filter(|c| c.path == "/oauth/token").collect();
+        assert!(
+            !exchanges.is_empty(),
+            "{name}: pairing did not reach the token endpoint"
+        );
+        for call in exchanges {
+            assert_eq!(
+                form_param(&call.body, "resource").as_deref(),
+                case["expectTokenParam"].as_str(),
+                "{name}: the token request"
+            );
         }
-    })
-    .await;
-    *base.lock().unwrap() = stub.base_url.clone();
-
-    let oauth = OAuthClient::new(&stub.base_url);
-    oauth
-        .pair("imog_pair_x", "A Device", "imogen://oauth", None, None)
-        .await
-        .expect("pairing completes");
-
-    let exchanges: Vec<_> = stub
-        .calls()
-        .into_iter()
-        .filter(|c| c.path == "/oauth/token")
-        .collect();
-    assert!(
-        !exchanges.is_empty(),
-        "pairing did not reach the token endpoint"
-    );
-    for call in exchanges {
-        assert_eq!(form_param(&call.body, "resource"), None);
     }
 }

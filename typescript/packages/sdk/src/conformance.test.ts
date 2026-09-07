@@ -9,6 +9,7 @@ import {
   DetectedFace,
   FaceStatus,
   LibraryStats,
+  PairingClaimRequest,
   Person,
   ProtectedResourceMetadata,
   QueueHealth,
@@ -319,6 +320,35 @@ describe('the RFC 8707 resource indicator', () => {
     // `resource=` is not the same as no resource: the server reads it as invalid_target.
     expect(new URLSearchParams(bodies[0]).has('resource')).toBe(false)
   })
+})
+
+describe('the resource indicator on a pairing claim', () => {
+  for (const item of endpoints.pairingResourceIndicator.cases) {
+    test(item.name, async () => {
+      const { calls, fetch } = recorder()
+      const client = new ImogenClient({ baseUrl: BASE, fetch, maxRetries: 0 })
+
+      // Through the schema rather than around it: the contract is `PairingClaimRequest`,
+      // and a port that never modelled `resource` strips it here rather than sending it.
+      await client.pairing.claim(
+        PairingClaimRequest.parse({
+          code: 'imog_pair_x',
+          clientId: 'CLIENT',
+          redirectUri: 'imogen://oauth',
+          codeChallenge: 'x'.repeat(43),
+          codeChallengeMethod: 'S256',
+          ...(item.resource === null ? {} : { resource: item.resource }),
+        }),
+      )
+
+      const body = JSON.parse(calls[0]?.body ?? '{}') as Record<string, unknown>
+      // A null `resource` is not the same as no resource: the server's request schema
+      // rejects the key with a null in it, so the absent case asserts the key is gone
+      // rather than merely falsy.
+      expect('resource' in body).toBe(item.expectClaimField !== null)
+      expect(body.resource ?? null).toEqual(item.expectClaimField)
+    })
+  }
 })
 
 describe('models decode as the contract says', () => {

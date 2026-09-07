@@ -632,37 +632,49 @@ def _endpoint_path(endpoints: Any, operation: str) -> str:
     raise AssertionError(f"the contract names no oauth.{operation}")
 
 
-async def test_pairing_names_no_resource(serve: Any) -> None:
-    """Pairing must stay unbound, and the reason is not visible from the call site.
+async def test_the_pairing_resource_indicator_travels_on_both_legs_or_neither(
+    serve: Any, endpoints: Any
+) -> None:
+    """A paired device binds its token by naming the resource on the claim.
 
-    ``/api/v1/pairing/claim`` mints its authorization code server-side and cannot record
-    a resource, so a token request naming one is refused — every paired device breaks at
-    once. Nothing in ``pair`` itself says so, which is why this is pinned here: pushing
-    ``resource`` down into the shared ``_exchange`` helper would do it silently.
+    The reason is not visible from the call site: the claim is where the code is minted,
+    so it is the only leg that can record a resource, and the exchange has to echo what
+    was recorded or the server answers invalid_target. Pinned here because pushing
+    ``resource`` down into the shared ``_exchange`` helper would get one leg and not the
+    other.
     """
-    holder: dict[str, str] = {}
+    for case in endpoints["pairingResourceIndicator"]["cases"]:
+        holder: dict[str, str] = {}
 
-    def responder(request: Any, index: int) -> Reply:
-        if request.path == "/api/v1/pairing/claim":
-            return Reply(
-                body=json.dumps(
-                    {"code": "ac_x", "redirectUri": "imogen://oauth", "scope": "library:read"}
+        def responder(request: Any, index: int, holder: dict[str, str] = holder) -> Reply:
+            if request.path == "/api/v1/pairing/claim":
+                return Reply(
+                    body=json.dumps(
+                        {"code": "ac_x", "redirectUri": "imogen://oauth", "scope": "library:read"}
+                    )
                 )
-            )
-        if request.path == "/oauth/register":
-            return Reply(body=json.dumps({"client_id": "CLIENT"}))
-        return _oauth_responder(holder)(request, index)
+            if request.path == "/oauth/register":
+                return Reply(body=json.dumps({"client_id": "CLIENT"}))
+            return _oauth_responder(holder)(request, index)
 
-    stub = serve(responder)
-    holder["base_url"] = stub.base_url
+        stub = serve(responder)
+        holder["base_url"] = stub.base_url
 
-    oauth = OAuthClient(stub.base_url)
-    try:
-        await oauth.pair("imog_pair_x", "A Device", "imogen://oauth")
-    finally:
-        await oauth.aclose()
+        oauth = OAuthClient(stub.base_url)
+        try:
+            await oauth.pair("imog_pair_x", "A Device", "imogen://oauth", resource=case["resource"])
+        finally:
+            await oauth.aclose()
 
-    exchanges = [c for c in stub.calls if c.path == "/oauth/token"]
-    assert exchanges, "pairing did not reach the token endpoint"
-    for call in exchanges:
-        assert "resource" not in parse_qs(call.body.decode(), keep_blank_values=True)
+        claims = [c for c in stub.calls if c.path == "/api/v1/pairing/claim"]
+        assert claims, f"{case['name']}: pairing did not reach the claim endpoint"
+        # A null is not the same as an absent key: the request schema refuses one, so the
+        # unbound case asserts the field is gone rather than merely falsy.
+        claimed = json.loads(claims[0].body.decode())
+        assert claimed.get("resource") == case["expectClaimField"], case["name"]
+
+        exchanges = [c for c in stub.calls if c.path == "/oauth/token"]
+        assert exchanges, f"{case['name']}: pairing did not reach the token endpoint"
+        for call in exchanges:
+            body = parse_qs(call.body.decode(), keep_blank_values=True)
+            assert body.get("resource", [None])[0] == case["expectTokenParam"], case["name"]

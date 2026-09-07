@@ -40,6 +40,11 @@ export class Pairing {
    * Spends a ticket. Called by the device, with a client it has just registered through
    * RFC 7591 and a PKCE challenge it generated; exchange the code that comes back at the
    * token endpoint with the matching verifier.
+   *
+   * A `resource` on the request is recorded on that code, so the token it becomes is
+   * bound to one surface exactly as a browser-flow token would be. Echo it on the
+   * exchange too: a server that recorded none answers `invalid_target`, which is how a
+   * client learns it cannot bind rather than quietly holding a token good everywhere.
    */
   claim(request: PairingClaimRequest): Promise<PairingClaim> {
     return this.http.request<PairingClaim>('POST', '/api/v1/pairing/claim', { body: request })

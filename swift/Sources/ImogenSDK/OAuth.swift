@@ -175,8 +175,8 @@ public actor OAuthClient {
     /// - Parameter resource: RFC 8707. When given, the token is bound to that one resource
     ///   and is refused everywhere else; take the value from
     ///   ``discoverProtectedResource(_:)``. Leave it nil for a token valid at every
-    ///   surface, which is what pairing has to use — the claim endpoint mints its code
-    ///   server-side and cannot record a resource.
+    ///   surface. A device that pairs rather than opening a browser names its resource on
+    ///   the claim instead; see ``pair(pairingCode:clientName:redirectURI:deviceName:scopes:resource:)``.
     public func beginAuthorization(
         clientId: String,
         redirectURI: String,
@@ -270,12 +270,19 @@ public actor OAuthClient {
     ///     deviceName: UIDevice.current.name
     /// )
     /// ```
+    ///
+    /// - Parameter resource: RFC 8707, and it travels on the claim rather than on an
+    ///   authorization request there is none of; take the value from
+    ///   ``discoverProtectedResource(_:)``. It is echoed on the exchange, so a server that
+    ///   recorded none answers `invalid_target` — which is how a device learns it cannot
+    ///   bind, rather than quietly holding a token good everywhere.
     public func pair(
         pairingCode: String,
         clientName: String,
         redirectURI: String,
         deviceName: String? = nil,
-        scopes: [String] = defaultScopes
+        scopes: [String] = defaultScopes,
+        resource: String? = nil
     ) async throws -> PairedDevice {
         let registered = try await register(
             name: clientName, redirectURIs: [redirectURI], scopes: scopes)
@@ -294,7 +301,8 @@ public actor OAuthClient {
                 redirectUri: redirectURI,
                 codeChallenge: s256(verifier),
                 scope: scopes.joined(separator: " "),
-                deviceName: deviceName
+                deviceName: deviceName,
+                resource: resource
             )
         )
 
@@ -308,13 +316,15 @@ public actor OAuthClient {
         }
 
         let claim = try JSONDecoder().decode(PairingClaim.self, from: data)
-        let tokens = try await exchange([
+        var form = [
             "grant_type": "authorization_code",
             "client_id": registered.clientId,
             "code": claim.code,
             "code_verifier": verifier,
             "redirect_uri": claim.redirectUri,
-        ])
+        ]
+        form["resource"] = resource
+        let tokens = try await exchange(form)
         return PairedDevice(clientId: registered.clientId, tokens: tokens, scope: claim.scope)
     }
 

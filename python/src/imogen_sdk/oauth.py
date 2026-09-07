@@ -165,8 +165,8 @@ class OAuthClient:
         ``resource`` is RFC 8707. When given, the token is bound to that one resource and
         is refused everywhere else; take the value from
         :meth:`discover_protected_resource`. Leave it None for a token valid at every
-        surface, which is what pairing has to use — the claim endpoint mints its code
-        server-side and cannot record a resource.
+        surface. A device that pairs rather than opening a browser names its resource on
+        the claim instead; see :meth:`pair`.
         """
         metadata = await self.discover()
         code_verifier = _random_string(32)
@@ -230,6 +230,7 @@ class OAuthClient:
         redirect_uri: str,
         device_name: str | None = None,
         scopes: Sequence[str] = DEFAULT_SCOPES,
+        resource: str | None = None,
     ) -> PairedDevice:
         """The whole pairing sequence, from a scanned QR code to tokens.
 
@@ -237,6 +238,12 @@ class OAuthClient:
         code, and exchanges it. The verifier never leaves this process, so the pairing code
         on its own — photographed off somebody's screen, say — cannot be turned into a
         session.
+
+        ``resource`` is RFC 8707, and travels on the claim rather than on an authorization
+        request there is none of; take the value from :meth:`discover_protected_resource`.
+        It is echoed on the exchange, so a server that recorded none answers
+        ``invalid_target`` — which is how a device learns it cannot bind, rather than
+        quietly holding a token good everywhere.
         """
         registered = await self.register(client_name, [redirect_uri], scopes)
         verifier = _random_string()
@@ -248,6 +255,7 @@ class OAuthClient:
             code_challenge=_s256(verifier),
             scope=" ".join(scopes),
             device_name=device_name,
+            resource=resource,
         )
         response = await self._client.post(
             f"{self.base_url}/api/v1/pairing/claim",
@@ -263,15 +271,16 @@ class OAuthClient:
             raise OAuthError(described)
 
         claim = PairingClaim.model_validate(response.json())
-        tokens = await self._exchange(
-            {
-                "grant_type": "authorization_code",
-                "client_id": registered.client_id,
-                "code": claim.code,
-                "code_verifier": verifier,
-                "redirect_uri": claim.redirect_uri,
-            }
-        )
+        exchange = {
+            "grant_type": "authorization_code",
+            "client_id": registered.client_id,
+            "code": claim.code,
+            "code_verifier": verifier,
+            "redirect_uri": claim.redirect_uri,
+        }
+        if resource is not None:
+            exchange["resource"] = resource
+        tokens = await self._exchange(exchange)
         return PairedDevice(client_id=registered.client_id, tokens=tokens, scope=claim.scope)
 
     async def refresh(self, client_id: str, refresh_token: str) -> StoredTokens:

@@ -137,7 +137,7 @@ describe('the last released server', () => {
 })
 
 describe('an authorization this client can complete', () => {
-  test('without a resource, as the pairing flow has to', async () => {
+  test('naming no resource at all', async () => {
     const accessToken = await authorize()
 
     expect(accessToken).toBeString()

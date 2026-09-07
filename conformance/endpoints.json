@@ -1,5 +1,5 @@
 {
-  "$comment": "The canonical endpoint table under `resources`, and under `oauthResourceIndicator` the one request parameter whose presence is itself the contract. Every port has a test that walks this file and asserts its client builds exactly these method/path pairs. A path that drifts in one language fails there and nowhere else, which is the point.",
+  "$comment": "The canonical endpoint table under `resources`, and under `oauthResourceIndicator` and `pairingResourceIndicator` the request parameters whose presence is itself the contract. Every port has a test that walks this file and asserts its client builds exactly these method/path pairs. A path that drifts in one language fails there and nowhere else, which is the point.",
   "version": "0.1.0",
   "apiPrefix": "/api/v1",
   "resources": {
@@ -122,6 +122,23 @@
         "resource": "https://photos.example.test/mcp",
         "expectAuthorizationParam": "https://photos.example.test/mcp",
         "expectTokenParam": "https://photos.example.test/mcp"
+      }
+    ]
+  },
+  "pairingResourceIndicator": {
+    "$comment": "RFC 8707 on the leg that has no authorization request to carry it. A paired device never visits the authorization endpoint — the ticket is redeemed and the code minted server-side — so the claim body is the only place it can name the resource its token is for, and the code that comes back is bound to it exactly as a browser-flow code would be. `resource` is optional in both directions: a claim that names none asks for a token good at every surface, which is what keeps devices paired before this existed working. A port whose pairing helper exchanges the code itself echoes the resource on that leg too, exactly as the browser flow does — a server that recorded nothing answers invalid_target, so a client that cannot bind finds out instead of quietly holding an unbound token.",
+    "cases": [
+      {
+        "name": "no resource named, so the parameter appears nowhere",
+        "resource": null,
+        "expectClaimField": null,
+        "expectTokenParam": null
+      },
+      {
+        "name": "the site root named, so the parameter appears on both legs",
+        "resource": "https://photos.example.test",
+        "expectClaimField": "https://photos.example.test",
+        "expectTokenParam": "https://photos.example.test"
       }
     ]
   }

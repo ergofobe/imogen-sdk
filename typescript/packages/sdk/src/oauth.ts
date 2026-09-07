@@ -125,8 +125,8 @@ export class OAuthClient {
   /**
    * @param resource RFC 8707. When given, the token is bound to this one resource and is
    * refused everywhere else; take the value from {@link discoverProtectedResource}. Omit it
-   * for a token valid at every surface, which is what the pairing flow has to use — the
-   * claim endpoint mints its code server-side and cannot record a resource.
+   * for a token valid at every surface. A device that pairs rather than opening a browser
+   * names its resource on the claim instead, which the server records on the code it mints.
    */
   async beginAuthorization(
     clientId: string,
