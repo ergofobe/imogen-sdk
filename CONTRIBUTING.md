@@ -18,6 +18,9 @@ each on its own, because each can break on its own.
 
 ## Running the suites
 
+The TypeScript suite shells out to `npm pack` to check what the published tarball contains,
+so it needs node and npm on the path alongside bun.
+
 ```bash
 cd typescript && bun install && bun run verify
 cd rust       && cargo test && cargo clippy --all-targets && cargo fmt --check
