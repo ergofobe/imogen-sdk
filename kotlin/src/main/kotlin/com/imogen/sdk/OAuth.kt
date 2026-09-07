@@ -23,6 +23,12 @@ import java.security.MessageDigest
 import java.security.SecureRandom
 import java.util.Base64
 
+/** A resource the server publishes a protected-resource document for: the REST API, or MCP. */
+enum class ProtectedResourcePath(val path: String) {
+    ROOT(""),
+    MCP("/mcp"),
+}
+
 /** Hold these until the redirect comes back; they complete the exchange. */
 data class PendingAuthorization(
     val authorizationUrl: String,
@@ -30,6 +36,15 @@ data class PendingAuthorization(
     val state: String,
     val redirectUri: String,
     val clientId: String,
+    /**
+     * The RFC 8707 resource this authorization asked for, or null for a token valid at
+     * every surface. Carried here rather than passed again at the exchange because the
+     * server refuses a token request naming a resource the code did not record: the two
+     * halves cannot disagree if only one of them holds it. Required rather than
+     * defaulted: an app rebuilds this after the browser round trip, and a default would
+     * silently drop the binding on the one path that has to reconstruct it by hand.
+     */
+    val resource: String?,
 )
 
 data class StoredTokens(
@@ -84,6 +99,22 @@ class OAuthClient(baseUrl: String, engine: KtorClient? = null) : AutoCloseable {
             .also { metadata = it }
     }
 
+    /**
+     * RFC 9728: the document describing one resource this server protects.
+     *
+     * Read the identifier to bind a token to from [ProtectedResourceMetadata.resource]
+     * here rather than building it.
+     */
+    suspend fun discoverProtectedResource(
+        path: ProtectedResourcePath = ProtectedResourcePath.ROOT,
+    ): ProtectedResourceMetadata {
+        val response = http.get("$baseUrl/.well-known/oauth-protected-resource${path.path}")
+        if (!response.status.isSuccess()) {
+            throw OAuthException("Could not read the protected resource metadata")
+        }
+        return wireJson.decodeFromString(response.bodyAsText())
+    }
+
     /** RFC 7591 dynamic registration, so an app never ships a hard-coded client id. */
     suspend fun register(
         name: String,
@@ -111,10 +142,17 @@ class OAuthClient(baseUrl: String, engine: KtorClient? = null) : AutoCloseable {
         return wireJson.decodeFromString(response.bodyAsText())
     }
 
+    /**
+     * @param resource RFC 8707. When given, the token is bound to that one resource and is
+     *   refused everywhere else; take the value from [discoverProtectedResource]. Leave it
+     *   null for a token valid at every surface, which is what pairing has to use — the
+     *   claim endpoint mints its code server-side and cannot record a resource.
+     */
     suspend fun beginAuthorization(
         clientId: String,
         redirectUri: String,
         scopes: List<String> = DEFAULT_SCOPES,
+        resource: String? = null,
     ): PendingAuthorization {
         val metadata = discover()
         val codeVerifier = randomString(32)
@@ -129,6 +167,7 @@ class OAuthClient(baseUrl: String, engine: KtorClient? = null) : AutoCloseable {
             append("state", state)
             append("code_challenge", s256(codeVerifier))
             append("code_challenge_method", "S256")
+            if (resource != null) append("resource", resource)
         }
 
         return PendingAuthorization(
@@ -137,6 +176,7 @@ class OAuthClient(baseUrl: String, engine: KtorClient? = null) : AutoCloseable {
             state = state,
             redirectUri = redirectUri,
             clientId = clientId,
+            resource = resource,
         )
     }
 
@@ -161,13 +201,14 @@ class OAuthClient(baseUrl: String, engine: KtorClient? = null) : AutoCloseable {
             ?: throw OAuthException("The callback carried no authorization code")
 
         return exchange(
-            mapOf(
-                "grant_type" to "authorization_code",
-                "client_id" to pending.clientId,
-                "code" to code,
-                "code_verifier" to pending.codeVerifier,
-                "redirect_uri" to pending.redirectUri,
-            )
+            buildMap {
+                put("grant_type", "authorization_code")
+                put("client_id", pending.clientId)
+                put("code", code)
+                put("code_verifier", pending.codeVerifier)
+                put("redirect_uri", pending.redirectUri)
+                pending.resource?.let { put("resource", it) }
+            }
         )
     }
 

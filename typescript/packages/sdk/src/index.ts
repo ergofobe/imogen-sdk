@@ -57,6 +57,7 @@ export {
   type AuthorizationServerMetadata,
   OAuthClient,
   type PendingAuthorization,
+  type ProtectedResourcePath,
   type StoredTokens,
 } from './oauth.js'
 export { Pairing } from './pairing.js'

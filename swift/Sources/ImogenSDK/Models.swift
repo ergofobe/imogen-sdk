@@ -743,6 +743,28 @@ public struct AuthorizationServerMetadata: Codable, Hashable, Sendable {
     }
 }
 
+/// RFC 9728 protected resource metadata.
+///
+/// ``resource`` is the identifier to echo back as the RFC 8707 `resource` parameter. The
+/// server compares it against the single spelling it publishes here, so a client that
+/// rebuilds the string from its own base URL can produce a near-miss — a stray port, a
+/// trailing slash — that comes back as `invalid_target`.
+public struct ProtectedResourceMetadata: Codable, Hashable, Sendable {
+    public var resource: String
+    public var authorizationServers: [String]?
+    public var scopesSupported: [String]?
+    public var bearerMethodsSupported: [String]?
+    public var resourceDocumentation: String?
+
+    enum CodingKeys: String, CodingKey {
+        case resource
+        case authorizationServers = "authorization_servers"
+        case scopesSupported = "scopes_supported"
+        case bearerMethodsSupported = "bearer_methods_supported"
+        case resourceDocumentation = "resource_documentation"
+    }
+}
+
 // MARK: - Pairing
 
 /// A ticket a signed-in browser makes so a device does not have to be told where the

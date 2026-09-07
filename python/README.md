@@ -98,6 +98,21 @@ stored = await oauth.complete_authorization(pending, callback_url)
 Hold `pending` until the redirect comes back — it carries the PKCE verifier and the state
 that stops a code from another session being injected.
 
+By default the token is valid at every surface. Passing the RFC 8707 `resource` binds it
+to one and gets it refused everywhere else. Read the identifier rather than building it —
+the server compares against the one spelling it publishes:
+
+```python
+mcp = await oauth.discover_protected_resource("/mcp")
+pending = await oauth.begin_authorization(
+    registered.client_id, "myapp://oauth", resource=mcp.resource
+)
+```
+
+`resource` travels on the authorization request and the token exchange together, carried on
+`pending` so the two cannot disagree — the server refuses a token request naming a resource
+the authorization code did not record.
+
 ## Development
 
 ```bash

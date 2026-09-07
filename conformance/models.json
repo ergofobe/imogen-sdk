@@ -504,6 +504,32 @@
       "refresh_token": "rt_def456"
     }
   },
+  "protectedResourceMetadata": {
+    "$comment": "RFC 9728. `resource` is the identifier a client echoes back as the RFC 8707 `resource` parameter, in the server's own spelling — the reason to read this document rather than build the string.",
+    "payload": {
+      "resource": "https://photos.example.test/mcp",
+      "authorization_servers": ["https://photos.example.test"],
+      "scopes_supported": ["library:read", "library:write", "albums:read", "albums:write"],
+      "bearer_methods_supported": ["header"],
+      "resource_documentation": "https://photos.example.test/api/v1/docs"
+    },
+    "assert": {
+      "resource": "https://photos.example.test/mcp",
+      "authorization_servers": ["https://photos.example.test"],
+      "scopes_supported": ["library:read", "library:write", "albums:read", "albums:write"],
+      "bearer_methods_supported": ["header"],
+      "resource_documentation": "https://photos.example.test/api/v1/docs"
+    }
+  },
+  "protectedResourceMetadataMinimal": {
+    "$comment": "RFC 9728 requires only `resource`. imogen's own server sends all five fields, so nothing here would notice a port that demanded them — until it met a server that did not. Every port decodes this one, which is what keeps the five from quietly disagreeing about what a legal document is.",
+    "payload": {
+      "resource": "https://photos.example.test"
+    },
+    "assert": {
+      "resource": "https://photos.example.test"
+    }
+  },
   "pairingTicket": {
     "payload": {
       "id": "6f8b0f4e-4f7a-4a2f-9d3e-0b4d2c1a7e55",

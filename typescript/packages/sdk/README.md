@@ -127,6 +127,24 @@ const tokens = await oauth.completeAuthorization(pending, callbackUrl)
 Hold `pending` until the redirect comes back — it carries the PKCE verifier and the state
 that stops a code from another session being injected.
 
+By default the token is valid at every surface. Passing the RFC 8707 `resource` binds it
+to one and gets it refused everywhere else. Read the identifier rather than building it —
+the server compares against the one spelling it publishes:
+
+```ts
+const mcp = await oauth.discoverProtectedResource('/mcp')
+const pending = await oauth.beginAuthorization(
+  registered.client_id,
+  'myapp://oauth',
+  undefined,
+  mcp.resource,
+)
+```
+
+`resource` travels on the authorization request and the token exchange together, carried on
+`pending` so the two cannot disagree — the server refuses a token request naming a resource
+the authorization code did not record.
+
 ## Development
 
 From `typescript/`:

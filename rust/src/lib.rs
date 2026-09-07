@@ -50,7 +50,9 @@ pub use crate::http::{
     DEFAULT_CONNECT_TIMEOUT,
 };
 pub use crate::models::*;
-pub use crate::oauth::{OAuthClient, PairedDevice, PendingAuthorization, StoredTokens};
+pub use crate::oauth::{
+    OAuthClient, PairedDevice, PendingAuthorization, ProtectedResourcePath, StoredTokens,
+};
 pub use crate::pairing::Pairing;
 pub use crate::people::People;
 pub use crate::vault::Vault;

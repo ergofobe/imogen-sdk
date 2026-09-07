@@ -10,6 +10,12 @@ import Foundation
     import Crypto
 #endif
 
+/// A resource the server publishes a protected-resource document for: the REST API, or MCP.
+public enum ProtectedResourcePath: String, Sendable {
+    case root = ""
+    case mcp = "/mcp"
+}
+
 /// Hold these until the redirect comes back; they complete the exchange.
 public struct PendingAuthorization: Hashable, Sendable {
     public let authorizationURL: String
@@ -17,24 +23,35 @@ public struct PendingAuthorization: Hashable, Sendable {
     public let state: String
     public let redirectURI: String
     public let clientId: String
+    /// The RFC 8707 resource this authorization asked for, or nil for a token valid at
+    /// every surface. Carried here rather than passed again at the exchange because the
+    /// server refuses a token request naming a resource the code did not record: the two
+    /// halves cannot disagree if only one of them holds it.
+    public let resource: String?
 
     /// Public, because an application has to put one of these back together.
     ///
     /// The browser is another process, and the app that opened it can be jettisoned while
     /// it is in front. So these fields are persisted before the redirect and rebuilt after
     /// it — the alternative is losing the verifier and, with it, the sign-in.
+    ///
+    /// `resource` takes no default for that same reason: this is the one path that
+    /// reconstructs the value by hand, and a default would let a caller silently drop the
+    /// binding it persisted rather than fail to compile.
     public init(
         authorizationURL: String,
         codeVerifier: String,
         state: String,
         redirectURI: String,
-        clientId: String
+        clientId: String,
+        resource: String?
     ) {
         self.authorizationURL = authorizationURL
         self.codeVerifier = codeVerifier
         self.state = state
         self.redirectURI = redirectURI
         self.clientId = clientId
+        self.resource = resource
     }
 }
 
@@ -103,6 +120,27 @@ public actor OAuthClient {
         return decoded
     }
 
+    /// RFC 9728: the document describing one resource this server protects.
+    ///
+    /// Read the identifier to bind a token to from ``ProtectedResourceMetadata/resource``
+    /// here rather than building it.
+    public func discoverProtectedResource(
+        _ path: ProtectedResourcePath = .root
+    ) async throws -> ProtectedResourceMetadata {
+        guard
+            let url = URL(
+                string: "\(baseURL)/.well-known/oauth-protected-resource\(path.rawValue)")
+        else {
+            throw OAuthError(message: "Could not build the protected resource URL")
+        }
+        let (data, response) = try await session.data(from: url)
+        guard let http = response as? HTTPURLResponse, (200..<300).contains(http.statusCode) else {
+            throw OAuthError(message: "Could not read the protected resource metadata")
+        }
+
+        return try JSONDecoder().decode(ProtectedResourceMetadata.self, from: data)
+    }
+
     /// RFC 7591 dynamic registration, so an app never ships a hard-coded client id.
     public func register(
         name: String,
@@ -134,10 +172,16 @@ public actor OAuthClient {
         return try JSONDecoder().decode(ClientRegistrationResponse.self, from: data)
     }
 
+    /// - Parameter resource: RFC 8707. When given, the token is bound to that one resource
+    ///   and is refused everywhere else; take the value from
+    ///   ``discoverProtectedResource(_:)``. Leave it nil for a token valid at every
+    ///   surface, which is what pairing has to use — the claim endpoint mints its code
+    ///   server-side and cannot record a resource.
     public func beginAuthorization(
         clientId: String,
         redirectURI: String,
-        scopes: [String] = defaultScopes
+        scopes: [String] = defaultScopes,
+        resource: String? = nil
     ) async throws -> PendingAuthorization {
         let metadata = try await discover()
         let codeVerifier = randomString(byteLength: 32)
@@ -155,6 +199,9 @@ public actor OAuthClient {
             URLQueryItem(name: "code_challenge", value: s256(codeVerifier)),
             URLQueryItem(name: "code_challenge_method", value: "S256"),
         ]
+        if let resource {
+            components.queryItems?.append(URLQueryItem(name: "resource", value: resource))
+        }
 
         guard let url = components.url else {
             throw OAuthError(message: "Could not build the authorization URL")
@@ -165,7 +212,8 @@ public actor OAuthClient {
             codeVerifier: codeVerifier,
             state: state,
             redirectURI: redirectURI,
-            clientId: clientId
+            clientId: clientId,
+            resource: resource
         )
     }
 
@@ -194,13 +242,15 @@ public actor OAuthClient {
             throw OAuthError(message: "The callback carried no authorization code")
         }
 
-        return try await exchange([
+        var form = [
             "grant_type": "authorization_code",
             "client_id": pending.clientId,
             "code": code,
             "code_verifier": pending.codeVerifier,
             "redirect_uri": pending.redirectURI,
-        ])
+        ]
+        form["resource"] = pending.resource
+        return try await exchange(form)
     }
 
     /// The whole pairing sequence, from a scanned QR code to tokens.

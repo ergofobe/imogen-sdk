@@ -1,4 +1,8 @@
-import type { ClientRegistrationResponse, TokenResponse } from '@imogen/shared'
+import type {
+  ClientRegistrationResponse,
+  ProtectedResourceMetadata,
+  TokenResponse,
+} from '@imogen/shared'
 import type { FetchLike } from './http.js'
 
 export type AuthorizationServerMetadata = {
@@ -11,6 +15,9 @@ export type AuthorizationServerMetadata = {
   code_challenge_methods_supported: string[]
 }
 
+/** A resource this server publishes a protected-resource document for: the REST API, or MCP. */
+export type ProtectedResourcePath = '' | '/mcp'
+
 export type PendingAuthorization = {
   authorizationUrl: string
   /** Hold these until the redirect comes back; they complete the exchange. */
@@ -18,6 +25,13 @@ export type PendingAuthorization = {
   state: string
   redirectUri: string
   clientId: string
+  /**
+   * The RFC 8707 resource this authorization asked for, or null for a token valid at every
+   * surface. Carried here rather than passed again at the exchange because the server
+   * refuses a token request naming a resource the code did not record: the two halves
+   * cannot be allowed to disagree.
+   */
+  resource: string | null
 }
 
 export type StoredTokens = TokenResponse & { obtainedAt: number }
@@ -70,6 +84,21 @@ export class OAuthClient {
     return this.metadata
   }
 
+  /**
+   * RFC 9728: the document describing one resource this server protects. Read the
+   * identifier to bind a token to from `resource` here rather than building it — see
+   * {@link ProtectedResourceMetadata}.
+   */
+  async discoverProtectedResource(
+    path: ProtectedResourcePath = '',
+  ): Promise<ProtectedResourceMetadata> {
+    const response = await this.doFetch(
+      `${this.baseUrl}/.well-known/oauth-protected-resource${path}`,
+    )
+    if (!response.ok) throw new Error('Could not read the protected resource metadata')
+    return (await response.json()) as ProtectedResourceMetadata
+  }
+
   /** RFC 7591 dynamic registration, so an app never ships a hard-coded client id. */
   async register(
     name: string,
@@ -93,10 +122,17 @@ export class OAuthClient {
     return (await response.json()) as ClientRegistrationResponse
   }
 
+  /**
+   * @param resource RFC 8707. When given, the token is bound to this one resource and is
+   * refused everywhere else; take the value from {@link discoverProtectedResource}. Omit it
+   * for a token valid at every surface, which is what the pairing flow has to use — the
+   * claim endpoint mints its code server-side and cannot record a resource.
+   */
   async beginAuthorization(
     clientId: string,
     redirectUri: string,
     scopes: string[] = ['library:read', 'library:write', 'albums:read', 'albums:write'],
+    resource?: string,
   ): Promise<PendingAuthorization> {
     const metadata = await this.discover()
     const codeVerifier = randomString()
@@ -110,8 +146,16 @@ export class OAuthClient {
     url.searchParams.set('state', state)
     url.searchParams.set('code_challenge', await s256(codeVerifier))
     url.searchParams.set('code_challenge_method', 'S256')
+    if (resource !== undefined) url.searchParams.set('resource', resource)
 
-    return { authorizationUrl: url.toString(), codeVerifier, state, redirectUri, clientId }
+    return {
+      authorizationUrl: url.toString(),
+      codeVerifier,
+      state,
+      redirectUri,
+      clientId,
+      resource: resource ?? null,
+    }
   }
 
   async completeAuthorization(
@@ -137,6 +181,7 @@ export class OAuthClient {
       code,
       code_verifier: pending.codeVerifier,
       redirect_uri: pending.redirectUri,
+      ...(pending.resource === null ? {} : { resource: pending.resource }),
     })
   }
 

@@ -1,5 +1,5 @@
 {
-  "$comment": "The canonical endpoint table. Every port has a test that walks this file and asserts its client builds exactly these method/path pairs. A path that drifts in one language fails there and nowhere else, which is the point.",
+  "$comment": "The canonical endpoint table under `resources`, and under `oauthResourceIndicator` the one request parameter whose presence is itself the contract. Every port has a test that walks this file and asserts its client builds exactly these method/path pairs. A path that drifts in one language fails there and nowhere else, which is the point.",
   "version": "0.1.0",
   "apiPrefix": "/api/v1",
   "resources": {
@@ -98,7 +98,31 @@
       { "operation": "claim", "method": "POST", "path": "/api/v1/pairing/claim" }
     ],
     "oauth": [
-      { "operation": "discover", "method": "GET", "path": "/.well-known/oauth-authorization-server" }
+      { "operation": "discover", "method": "GET", "path": "/.well-known/oauth-authorization-server" },
+      { "operation": "protectedResource", "method": "GET", "path": "/.well-known/oauth-protected-resource" },
+      { "operation": "protectedResourceMcp", "method": "GET", "path": "/.well-known/oauth-protected-resource/mcp" }
+    ]
+  },
+  "oauthResourceIndicator": {
+    "$comment": "RFC 8707. The server records the resource at the authorization request and refuses a token request that names one the code did not, so `resource` travels on both legs or on neither. Sending it only at the token endpoint is a hard invalid_target, which is why these cases assert the authorization query and the token body together rather than one at a time.",
+    "identifiers": {
+      "$comment": "Read from the protected-resource documents, never concatenated: the server compares against the one spelling it publishes, and a locally built near-miss comes back as invalid_target.",
+      "root": "https://photos.example.test",
+      "mcp": "https://photos.example.test/mcp"
+    },
+    "cases": [
+      {
+        "name": "no resource named, so the parameter appears nowhere",
+        "resource": null,
+        "expectAuthorizationParam": null,
+        "expectTokenParam": null
+      },
+      {
+        "name": "the MCP endpoint named, so the parameter appears on both legs",
+        "resource": "https://photos.example.test/mcp",
+        "expectAuthorizationParam": "https://photos.example.test/mcp",
+        "expectTokenParam": "https://photos.example.test/mcp"
+      }
     ]
   }
 }

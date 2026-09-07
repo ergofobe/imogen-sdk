@@ -184,6 +184,12 @@ enum Conformance {
             case "oauth.discover":
                 _ = try await client.http.send("GET", "/.well-known/oauth-authorization-server")
 
+            case "oauth.protectedResource":
+                _ = try await client.http.send("GET", "/.well-known/oauth-protected-resource")
+
+            case "oauth.protectedResourceMcp":
+                _ = try await client.http.send("GET", "/.well-known/oauth-protected-resource/mcp")
+
             default: return false
             }
         } catch {
@@ -300,6 +306,8 @@ enum Conformance {
         try check(StorageReport.self, "storageReport")
         try check(ServerSettings.self, "serverSettings")
         try check(TokenResponse.self, "tokenResponse")
+        try check(ProtectedResourceMetadata.self, "protectedResourceMetadata")
+        try check(ProtectedResourceMetadata.self, "protectedResourceMetadataMinimal")
         try check(PairingTicket.self, "pairingTicket")
         try check(PairingStatus.self, "pairingStatusUnclaimed")
         try check(PairingStatus.self, "pairingStatusClaimed")
@@ -498,6 +506,142 @@ enum Conformance {
         expectEqual(client.assets.url(for: "A1", variant: .preview),
             "\(Conformance.base)/api/v1/assets/A1/preview")
         expectEqual(client.assets.downloadURL(for: "A1"), "\(Conformance.base)/api/v1/assets/A1/download")
+    }
+
+    // MARK: The RFC 8707 resource indicator
+
+    /// Reads one field out of an `application/x-www-form-urlencoded` body.
+    ///
+    /// `URLComponents` is no help here: assigning a form body to `query` leaves the
+    /// percent-encoding in place rather than resolving it, so `resource` comes back as
+    /// `https%3A%2F%2F…` and never matches the fixture.
+    /// `omittingEmptySubsequences: false`, because `resource=` is not the same as no
+    /// resource: the server reads an empty one as `invalid_target`, and the default would
+    /// collapse `"resource="` to a single part and report it as absent — discarding
+    /// exactly the mistake the null case exists to catch.
+    static func formValue(_ body: String, _ name: String) -> String? {
+        for pair in body.split(separator: "&") {
+            let parts = pair.split(
+                separator: "=", maxSplits: 1, omittingEmptySubsequences: false)
+            guard parts.count == 2, parts[0] == name else { continue }
+            return String(parts[1]).removingPercentEncoding
+        }
+        return nil
+    }
+
+    /// Answers discovery, then hands back a token for whatever is exchanged.
+    static let oauthReply: @Sendable (Recorded, Int) -> Reply = { request, _ in
+        if request.path == "/.well-known/oauth-authorization-server" {
+            let fields = [
+                "\"issuer\":\"\(base)\"",
+                "\"authorization_endpoint\":\"\(base)/oauth/authorize\"",
+                "\"token_endpoint\":\"\(base)/oauth/token\"",
+                "\"registration_endpoint\":\"\(base)/oauth/register\"",
+            ]
+            return .json("{\(fields.joined(separator: ","))}")
+        }
+        return .json(
+            #"{"access_token":"at","token_type":"Bearer","expires_in":3600,"scope":"library:read"}"#
+        )
+    }
+
+    static func testTheResourceIndicatorTravelsOnBothLegsOrNeither() async throws {
+        let endpoints = try Conformance.fixture("endpoints.json")
+        let indicator = endpoints["oauthResourceIndicator"] as! [String: Any]
+
+        for case let item as [String: Any] in indicator["cases"] as! [Any] {
+            let name = item["name"] as! String
+            let resource = item["resource"] as? String
+            let session = stubbedSession(Conformance.oauthReply)
+            let oauth = OAuthClient(baseURL: base, session: session)
+
+            let pending = try await oauth.beginAuthorization(
+                clientId: "CLIENT", redirectURI: "app://callback", resource: resource
+            )
+
+            let query = URLComponents(string: pending.authorizationURL)?.queryItems ?? []
+            let sent = query.first { $0.name == "resource" }?.value
+            expectEqual(sent, item["expectAuthorizationParam"] as? String, "\(name): authorization")
+
+            let before = StubState.shared.callCount
+            _ = try await oauth.completeAuthorization(
+                pending, callbackURL: "app://callback?code=CODE&state=\(pending.state)"
+            )
+
+            let body = String(decoding: StubState.shared.calls[before].body, as: UTF8.self)
+            expectEqual(formValue(body, "resource"), item["expectTokenParam"] as? String,
+                "\(name): token request")
+        }
+    }
+
+    /// The path the contract gives for one `oauth` operation.
+    static func oauthPath(_ endpoints: [String: Any], _ operation: String) -> String {
+        let rows = (endpoints["resources"] as! [String: Any])["oauth"] as! [Any]
+        for case let row as [String: Any] in rows where row["operation"] as? String == operation {
+            return row["path"] as! String
+        }
+        fail("the contract names no oauth.\(operation)")
+        return ""
+    }
+
+    static func testEachResourceIdentifierIsReadFromItsDocument() async throws {
+        let endpoints = try Conformance.fixture("endpoints.json")
+        let indicator = endpoints["oauthResourceIndicator"] as! [String: Any]
+        let identifiers = indicator["identifiers"] as! [String: Any]
+        let root = identifiers["root"] as! String
+        let mcp = identifiers["mcp"] as! String
+
+        let session = stubbedSession { request, _ in
+            // Answers with the identifier for whichever document was asked for, so a
+            // client that read the wrong one is caught by the value and not just by the
+            // path.
+            .json(#"{"resource":"\#(request.path.hasSuffix("/mcp") ? mcp : root)"}"#)
+        }
+        let oauth = OAuthClient(baseURL: base, session: session)
+
+        expectEqual(try await oauth.discoverProtectedResource().resource, root)
+        expectEqual(try await oauth.discoverProtectedResource(.mcp).resource, mcp)
+
+        expectEqual(
+            StubState.shared.calls.map(\.path),
+            [
+                oauthPath(endpoints, "protectedResource"),
+                oauthPath(endpoints, "protectedResourceMcp"),
+            ]
+        )
+    }
+
+    /// Pairing must stay unbound, and the reason is not visible from the call site.
+    ///
+    /// `/api/v1/pairing/claim` mints its authorization code server-side and cannot record
+    /// a resource, so a token request naming one is refused — every paired device breaks
+    /// at once. Nothing in ``OAuthClient/pair(pairingCode:clientName:redirectURI:deviceName:scopes:)``
+    /// itself says so, which is why this is pinned here: pushing `resource` down into the
+    /// shared exchange helper would do it silently.
+    static func testPairingNamesNoResource() async throws {
+        let session = stubbedSession { request, index in
+            switch request.path {
+            case "/oauth/register": return .json(#"{"client_id":"CLIENT"}"#)
+            case "/api/v1/pairing/claim":
+                return .json(
+                    #"{"code":"ac_x","redirectUri":"imogen://oauth","scope":"library:read"}"#)
+            default: return Conformance.oauthReply(request, index)
+            }
+        }
+        let oauth = OAuthClient(baseURL: base, session: session)
+
+        _ = try await oauth.pair(
+            pairingCode: "imog_pair_x", clientName: "A Device", redirectURI: "imogen://oauth"
+        )
+
+        let exchanges = StubState.shared.calls.filter { $0.path == "/oauth/token" }
+        expectTrue(!exchanges.isEmpty, "pairing did not reach the token endpoint")
+        for call in exchanges {
+            expectNil(
+                formValue(String(decoding: call.body, as: UTF8.self), "resource"),
+                "the pairing exchange"
+            )
+        }
     }
 
     static func testIteratesEveryPageExactlyOnce() async throws {

@@ -90,6 +90,15 @@ await scenario("reads a pairing invitation, and refuses everything else") {
 await scenario("builds image URLs without a request") {
     Conformance.testBuildsImageURLsWithoutARequest()
 }
+await scenario("the resource indicator travels on both legs or neither") {
+    try await Conformance.testTheResourceIndicatorTravelsOnBothLegsOrNeither()
+}
+await scenario("each resource identifier is read from its document") {
+    try await Conformance.testEachResourceIdentifierIsReadFromItsDocument()
+}
+await scenario("pairing names no resource") {
+    try await Conformance.testPairingNamesNoResource()
+}
 await scenario("iterates every page exactly once") {
     try await Conformance.testIteratesEveryPageExactlyOnce()
 }

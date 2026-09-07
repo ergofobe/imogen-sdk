@@ -7,10 +7,11 @@
 mod stub;
 
 use std::path::Path;
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 
 use imogen_sdk::*;
 use serde_json::Value;
+use url::Url;
 
 use stub::Reply;
 
@@ -295,6 +296,28 @@ async fn invoke(client: &ImogenClient, key: &str, big_file: &Path) -> bool {
                 .await,
         ),
 
+        "oauth.protectedResource" => drop(
+            client
+                .http
+                .send(
+                    Method::GET,
+                    "/.well-known/oauth-protected-resource",
+                    RequestOptions::default(),
+                )
+                .await,
+        ),
+
+        "oauth.protectedResourceMcp" => drop(
+            client
+                .http
+                .send(
+                    Method::GET,
+                    "/.well-known/oauth-protected-resource/mcp",
+                    RequestOptions::default(),
+                )
+                .await,
+        ),
+
         _ => return false,
     }
     true
@@ -434,6 +457,8 @@ fn models_decode_as_the_contract_says() {
     check_model::<StorageReport>("storageReport");
     check_model::<ServerSettings>("serverSettings");
     check_model::<TokenResponse>("tokenResponse");
+    check_model::<ProtectedResourceMetadata>("protectedResourceMetadata");
+    check_model::<ProtectedResourceMetadata>("protectedResourceMetadataMinimal");
     check_model::<PairingTicket>("pairingTicket");
     check_model::<PairingStatus>("pairingStatusUnclaimed");
     check_model::<PairingStatus>("pairingStatusClaimed");
@@ -685,4 +710,188 @@ async fn walks_every_page_exactly_once() {
 
     let ids: Vec<&str> = all.iter().map(|a| a.id.as_str()).collect();
     assert_eq!(ids, vec!["a", "b"]);
+}
+
+/// The stub's port is only known once it is listening, so the endpoints it advertises are
+/// read out of the shared slot at request time rather than captured when it is built.
+async fn oauth_stub() -> (stub::Stub, Arc<Mutex<String>>) {
+    let base: Arc<Mutex<String>> = Arc::new(Mutex::new(String::new()));
+    let advertised = base.clone();
+
+    let stub = stub::start(move |request, _index| {
+        let base = advertised.lock().unwrap().clone();
+        if request.path == "/.well-known/oauth-authorization-server" {
+            return Reply::json(format!(
+                r#"{{"issuer":"{base}","authorization_endpoint":"{base}/oauth/authorize","token_endpoint":"{base}/oauth/token"}}"#
+            ));
+        }
+        Reply::json(
+            r#"{"access_token":"at","token_type":"Bearer","expires_in":3600,"scope":"library:read"}"#,
+        )
+    })
+    .await;
+
+    *base.lock().unwrap() = stub.base_url.clone();
+    (stub, base)
+}
+
+fn query_param(url: &str, name: &str) -> Option<String> {
+    Url::parse(url)
+        .unwrap()
+        .query_pairs()
+        .find(|(key, _)| key == name)
+        .map(|(_, value)| value.into_owned())
+}
+
+fn form_param(body: &[u8], name: &str) -> Option<String> {
+    url::form_urlencoded::parse(body)
+        .find(|(key, _)| key == name)
+        .map(|(_, value)| value.into_owned())
+}
+
+#[tokio::test]
+async fn the_resource_indicator_travels_on_both_legs_or_neither() {
+    let endpoints = fixture(ENDPOINTS);
+
+    for case in endpoints["oauthResourceIndicator"]["cases"]
+        .as_array()
+        .expect("the contract names resource indicator cases")
+    {
+        let name = case["name"].as_str().unwrap();
+        let resource = case["resource"].as_str();
+        let (stub, _base) = oauth_stub().await;
+        let oauth = OAuthClient::new(&stub.base_url);
+
+        let pending = oauth
+            .begin_authorization("CLIENT", "app://callback", None, resource)
+            .await
+            .expect("the authorization URL builds");
+
+        assert_eq!(
+            query_param(&pending.authorization_url, "resource").as_deref(),
+            case["expectAuthorizationParam"].as_str(),
+            "{name}: the authorization request"
+        );
+
+        let before = stub.call_count();
+        oauth
+            .complete_authorization(
+                &pending,
+                &format!("app://callback?code=CODE&state={}", pending.state),
+            )
+            .await
+            .expect("the exchange succeeds");
+
+        let body = stub.calls()[before].body.clone();
+        assert_eq!(
+            form_param(&body, "resource").as_deref(),
+            case["expectTokenParam"].as_str(),
+            "{name}: the token request"
+        );
+    }
+}
+
+/// The path the contract gives for one `oauth` operation.
+fn oauth_path(endpoints: &Value, operation: &str) -> String {
+    endpoints["resources"]["oauth"]
+        .as_array()
+        .expect("the contract names oauth operations")
+        .iter()
+        .find(|row| row["operation"] == operation)
+        .unwrap_or_else(|| panic!("the contract names no oauth.{operation}"))["path"]
+        .as_str()
+        .unwrap()
+        .to_string()
+}
+
+#[tokio::test]
+async fn each_resource_identifier_is_read_from_its_document() {
+    let endpoints = fixture(ENDPOINTS);
+    let identifiers = &endpoints["oauthResourceIndicator"]["identifiers"];
+    let root = identifiers["root"].as_str().unwrap().to_string();
+    let mcp = identifiers["mcp"].as_str().unwrap().to_string();
+
+    let (answer_root, answer_mcp) = (root.clone(), mcp.clone());
+    let stub = stub::start(move |request, _index| {
+        // Answers with the identifier for whichever document was asked for, so a client
+        // that read the wrong one is caught by the value and not just by the path.
+        let resource = if request.path.ends_with("/mcp") {
+            &answer_mcp
+        } else {
+            &answer_root
+        };
+        Reply::json(format!(r#"{{"resource":"{resource}"}}"#))
+    })
+    .await;
+
+    let oauth = OAuthClient::new(&stub.base_url);
+    let read_root = oauth
+        .discover_protected_resource(ProtectedResourcePath::Root)
+        .await
+        .expect("the root document reads");
+    let read_mcp = oauth
+        .discover_protected_resource(ProtectedResourcePath::Mcp)
+        .await
+        .expect("the MCP document reads");
+
+    assert_eq!(read_root.resource, root);
+    assert_eq!(read_mcp.resource, mcp);
+
+    let paths: Vec<String> = stub.calls().iter().map(|c| c.path.clone()).collect();
+    assert_eq!(
+        paths,
+        vec![
+            oauth_path(&endpoints, "protectedResource"),
+            oauth_path(&endpoints, "protectedResourceMcp"),
+        ]
+    );
+}
+
+/// Pairing must stay unbound, and the reason is not visible from the call site.
+///
+/// `/api/v1/pairing/claim` mints its authorization code server-side and cannot record a
+/// resource, so a token request naming one is refused — every paired device breaks at
+/// once. Nothing in `pair` itself says so, which is why this is pinned here: pushing
+/// `resource` down into the shared `exchange` helper would do it silently.
+#[tokio::test]
+async fn pairing_names_no_resource() {
+    let base: Arc<Mutex<String>> = Arc::new(Mutex::new(String::new()));
+    let advertised = base.clone();
+
+    let stub = stub::start(move |request, _index| {
+        let base = advertised.lock().unwrap().clone();
+        match request.path.as_str() {
+            "/.well-known/oauth-authorization-server" => Reply::json(format!(
+                r#"{{"issuer":"{base}","authorization_endpoint":"{base}/oauth/authorize","token_endpoint":"{base}/oauth/token","registration_endpoint":"{base}/oauth/register"}}"#
+            )),
+            "/oauth/register" => Reply::json(r#"{"client_id":"CLIENT"}"#),
+            "/api/v1/pairing/claim" => Reply::json(
+                r#"{"code":"ac_x","redirectUri":"imogen://oauth","scope":"library:read"}"#,
+            ),
+            _ => Reply::json(
+                r#"{"access_token":"at","token_type":"Bearer","expires_in":3600,"scope":"library:read"}"#,
+            ),
+        }
+    })
+    .await;
+    *base.lock().unwrap() = stub.base_url.clone();
+
+    let oauth = OAuthClient::new(&stub.base_url);
+    oauth
+        .pair("imog_pair_x", "A Device", "imogen://oauth", None, None)
+        .await
+        .expect("pairing completes");
+
+    let exchanges: Vec<_> = stub
+        .calls()
+        .into_iter()
+        .filter(|c| c.path == "/oauth/token")
+        .collect();
+    assert!(
+        !exchanges.is_empty(),
+        "pairing did not reach the token endpoint"
+    );
+    for call in exchanges {
+        assert_eq!(form_param(&call.body, "resource"), None);
+    }
 }
