@@ -1,4 +1,5 @@
 import { beforeAll, describe, expect, test } from 'bun:test'
+import { createHash, randomBytes } from 'node:crypto'
 import { type FetchLike, ImogenClient, OAuthClient } from '@imogen/sdk'
 
 /**
@@ -170,5 +171,31 @@ describe('an authorization this client can complete', () => {
     // /mcp, and the enforcement is symmetric. Reaching for a read here would assert the
     // negation of the server's own contract, and go red on the release that implements it.
     expect(accessToken).toBeString()
+  })
+})
+
+describe('a device this client can pair', () => {
+  // `PairingClaimRequest` grew an optional `resource`, which a released server has never
+  // heard of. Naming none is the only case forward compatibility covers: this asserts the
+  // released server still pairs, not that a newer one binds. Naming one *does* need the
+  // server half — the old server ignores the field, mints an unbound code, and refuses the
+  // exchange that echoes it — which is the breaking change the SDK PR has to declare, and
+  // asserting it here would go red on every release older than the feature.
+  test('without a resource, which is all a released server can honour', async () => {
+    const ticket = await client.pairing.create()
+    const registered = await oauth.register('Forward compatibility device', [redirectUri])
+    const verifier = randomBytes(32).toString('base64url')
+
+    const claim = await client.pairing.claim({
+      code: ticket.code,
+      clientId: registered.client_id,
+      redirectUri,
+      codeChallenge: createHash('sha256').update(verifier).digest('base64url'),
+      codeChallengeMethod: 'S256',
+      deviceName: 'Forward compatibility device',
+    })
+
+    expect(claim.code).toBeString()
+    expect(claim.scope).toBeString()
   })
 })

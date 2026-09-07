@@ -610,6 +610,11 @@ class ConformanceTest {
             // the unbound case asserts the field is gone rather than merely falsy.
             val claimed = Json.parseToJsonElement(String(claims[0].body)).jsonObject
             assertEquals(
+                item["expectClaimField"] !is JsonNull,
+                claimed.containsKey("resource"),
+                "$name: the claim carries a resource key",
+            )
+            assertEquals(
                 expected(item["expectClaimField"]!!),
                 claimed["resource"]?.jsonPrimitive?.content,
                 "$name: the claim",

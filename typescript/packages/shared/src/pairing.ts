@@ -67,9 +67,10 @@ export const PairingClaimRequest = z.object({
    *
    * Left a bare string rather than a URL: what counts as a resource identifier is the
    * set the server publishes, not anything a schema can know, so the one place that
-   * decides stays the one place that decides and the refusal is `invalid_target` here as
-   * everywhere else. Optional in both directions — omit it for a token good at every
-   * surface, which is what every device paired before this existed already holds.
+   * decides stays the one place that decides. A resource this server does not publish
+   * comes back as a 400 on the claim, and as `invalid_target` on the exchange that
+   * echoes it. Optional in both directions — omit it for a token good at every surface,
+   * which is what every device paired before this existed already holds.
    */
   resource: z.string().min(1).max(2048).optional(),
 })

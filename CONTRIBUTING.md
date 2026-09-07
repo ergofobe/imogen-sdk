@@ -116,9 +116,10 @@ The job checks that a released server does not *choke* on something new, never t
 the current server gives a new field meaning is `sdk-contract.test.ts`'s question, on the
 other side of the split.
 
-What it covers is the auth handshake and a couple of authenticated reads, and nothing else:
-timeline, albums, upload, pairing and vault are not exercised, and `assets.list()` is called
-with no query, so a new optional request parameter would never reach a released server. Add
+What it covers is the auth handshake, a couple of authenticated reads, and a pairing claim
+that names no resource, and nothing else: timeline, albums, upload and vault are not
+exercised, and `assets.list()` is called with no query, so a new optional request parameter
+would never reach a released server. Add
 to this file when you add surface that a released server has to tolerate — nothing forces
 you to, so the cover it gives will otherwise quietly narrow as the SDK grows.
 

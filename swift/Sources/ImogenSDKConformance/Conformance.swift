@@ -611,13 +611,6 @@ enum Conformance {
         )
     }
 
-    /// Pairing must stay unbound, and the reason is not visible from the call site.
-    ///
-    /// `/api/v1/pairing/claim` mints its authorization code server-side and cannot record
-    /// a resource, so a token request naming one is refused — every paired device breaks
-    /// at once. Nothing in ``OAuthClient/pair(pairingCode:clientName:redirectURI:deviceName:scopes:)``
-    /// itself says so, which is why this is pinned here: pushing `resource` down into the
-    /// shared exchange helper would do it silently.
     /// A paired device binds its token by naming the resource on the claim.
     ///
     /// The reason is not visible from the call site: the claim is where the code is
@@ -652,9 +645,15 @@ enum Conformance {
             let claims = StubState.shared.calls.filter { $0.path == "/api/v1/pairing/claim" }
             expectTrue(!claims.isEmpty, "\(name): pairing did not reach the claim endpoint")
             // A null is not the same as an absent key: the request schema refuses one, so
-            // the unbound case asserts the field is gone rather than merely falsy.
+            // the unbound case asserts the field is gone rather than merely falsy, which
+            // casting it to String? would not distinguish.
             let claimed =
                 (try? JSONSerialization.jsonObject(with: claims[0].body)) as? [String: Any]
+            // `as? String` on both sides: a JSON null arrives from JSONSerialization as
+            // NSNull, which is not nil, and comparing against nil would read it as present.
+            expectEqual(
+                claimed?["resource"] != nil, item["expectClaimField"] as? String != nil,
+                "\(name): the claim carries a resource key")
             expectEqual(
                 claimed?["resource"] as? String, item["expectClaimField"] as? String,
                 "\(name): the claim")

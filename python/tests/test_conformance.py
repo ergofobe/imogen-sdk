@@ -669,8 +669,10 @@ async def test_the_pairing_resource_indicator_travels_on_both_legs_or_neither(
         claims = [c for c in stub.calls if c.path == "/api/v1/pairing/claim"]
         assert claims, f"{case['name']}: pairing did not reach the claim endpoint"
         # A null is not the same as an absent key: the request schema refuses one, so the
-        # unbound case asserts the field is gone rather than merely falsy.
+        # unbound case asserts the field is gone rather than merely falsy, which reading it
+        # back with .get would not distinguish.
         claimed = json.loads(claims[0].body.decode())
+        assert ("resource" in claimed) == (case["expectClaimField"] is not None), case["name"]
         assert claimed.get("resource") == case["expectClaimField"], case["name"]
 
         exchanges = [c for c in stub.calls if c.path == "/oauth/token"]

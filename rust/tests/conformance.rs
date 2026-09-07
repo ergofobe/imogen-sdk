@@ -906,7 +906,13 @@ async fn the_pairing_resource_indicator_travels_on_both_legs_or_neither() {
             .unwrap_or_else(|| panic!("{name}: pairing did not reach the claim endpoint"));
         let claimed: Value = serde_json::from_slice(&claim.body).expect("the claim body is JSON");
         // A null is not the same as an absent key: the request schema refuses one, so the
-        // unbound case asserts the field is gone rather than merely falsy.
+        // unbound case asserts the field is gone rather than merely falsy, which reading
+        // it as a string would not distinguish.
+        assert_eq!(
+            claimed.get("resource").is_some(),
+            !case["expectClaimField"].is_null(),
+            "{name}: the claim carries a resource key"
+        );
         assert_eq!(
             claimed.get("resource").and_then(Value::as_str),
             case["expectClaimField"].as_str(),
