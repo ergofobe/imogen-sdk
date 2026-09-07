@@ -116,13 +116,29 @@ never ships a hard-coded client id and never holds a secret:
 ```rust
 let oauth = imogen_sdk::OAuthClient::new("https://photos.example.com");
 let registered = oauth.register("My Photo App", &["myapp://oauth".into()], None).await?;
-let pending = oauth.begin_authorization(&registered.client_id, "myapp://oauth", None).await?;
+let pending = oauth
+    .begin_authorization(&registered.client_id, "myapp://oauth", None, None)
+    .await?;
 // open pending.authorization_url in the system browser, then on the callback:
 let stored = oauth.complete_authorization(&pending, &callback_url).await?;
 ```
 
 Hold `pending` until the redirect comes back — it carries the PKCE verifier and the state
 that stops a code from another session being injected.
+
+The last argument is the RFC 8707 `resource`. `None` asks for a token valid at every
+surface; naming one binds the token to it and gets it refused everywhere else. Read the
+identifier rather than building it — the server compares against the one spelling it
+publishes:
+
+```rust
+let mcp = oauth
+    .discover_protected_resource(imogen_sdk::ProtectedResourcePath::Mcp)
+    .await?;
+let pending = oauth
+    .begin_authorization(&registered.client_id, "myapp://oauth", None, Some(&mcp.resource))
+    .await?;
+```
 
 ## A note on types
 
