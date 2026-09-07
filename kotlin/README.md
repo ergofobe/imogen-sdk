@@ -112,6 +112,21 @@ OAuthClient("https://photos.example.com").use { oauth ->
 Hold `pending` until the redirect comes back — it carries the PKCE verifier and the state
 that stops a code from another session being injected.
 
+By default the token is valid at every surface. Passing the RFC 8707 `resource` binds it
+to one and gets it refused everywhere else. Read the identifier rather than building it —
+the server compares against the one spelling it publishes:
+
+```kotlin
+val mcp = oauth.discoverProtectedResource(ProtectedResourcePath.MCP)
+val pending = oauth.beginAuthorization(
+    registered.clientId, "myapp://oauth", resource = mcp.resource
+)
+```
+
+`resource` travels on the authorization request and the token exchange together, carried on
+`pending` so the two cannot disagree — the server refuses a token request naming a resource
+the authorization code did not record.
+
 ## A note on types
 
 Timestamps are `String`, not `Instant`. The contract specifies ISO-8601 and nothing else,

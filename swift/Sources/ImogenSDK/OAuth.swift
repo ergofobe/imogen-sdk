@@ -34,13 +34,17 @@ public struct PendingAuthorization: Hashable, Sendable {
     /// The browser is another process, and the app that opened it can be jettisoned while
     /// it is in front. So these fields are persisted before the redirect and rebuilt after
     /// it — the alternative is losing the verifier and, with it, the sign-in.
+    ///
+    /// `resource` takes no default for that same reason: this is the one path that
+    /// reconstructs the value by hand, and a default would let a caller silently drop the
+    /// binding it persisted rather than fail to compile.
     public init(
         authorizationURL: String,
         codeVerifier: String,
         state: String,
         redirectURI: String,
         clientId: String,
-        resource: String? = nil
+        resource: String?
     ) {
         self.authorizationURL = authorizationURL
         self.codeVerifier = codeVerifier

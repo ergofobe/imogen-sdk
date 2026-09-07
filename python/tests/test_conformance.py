@@ -548,6 +548,7 @@ def _oauth_responder(holder: dict[str, str]) -> Any:
                         "issuer": base,
                         "authorization_endpoint": f"{base}/oauth/authorize",
                         "token_endpoint": f"{base}/oauth/token",
+                        "registration_endpoint": f"{base}/oauth/register",
                     }
                 )
             )
@@ -578,7 +579,10 @@ async def test_the_resource_indicator_travels_on_both_legs_or_neither(
             pending = await oauth.begin_authorization(
                 "CLIENT", "app://callback", ["library:read"], case["resource"]
             )
-            query = parse_qs(urlparse(pending.authorization_url).query)
+            # keep_blank_values, because `resource=` is not the same as no resource: the
+            # server reads an empty one as invalid_target, and the default would discard
+            # exactly the mistake the null case exists to catch.
+            query = parse_qs(urlparse(pending.authorization_url).query, keep_blank_values=True)
             got = query.get("resource", [None])[0]
             assert got == case["expectAuthorizationParam"], case["name"]
 
@@ -586,29 +590,77 @@ async def test_the_resource_indicator_travels_on_both_legs_or_neither(
             await oauth.complete_authorization(
                 pending, f"app://callback?code=CODE&state={pending.state}"
             )
-            body = parse_qs(stub.calls[before].body.decode())
+            body = parse_qs(stub.calls[before].body.decode(), keep_blank_values=True)
             assert body.get("resource", [None])[0] == case["expectTokenParam"], case["name"]
         finally:
             await oauth.aclose()
 
 
-async def test_each_resource_identifier_is_read_from_its_document(serve: Any) -> None:
+async def test_each_resource_identifier_is_read_from_its_document(
+    serve: Any, endpoints: Any
+) -> None:
+    identifiers = endpoints["oauthResourceIndicator"]["identifiers"]
+
     def responder(request: Any, _index: int) -> Reply:
-        return Reply(
-            body=json.dumps(
-                {"resource": f"https://photos.example.test{request.path.split('resource')[-1]}"}
-            )
-        )
+        # Answers with the identifier for whichever document was asked for, so a client
+        # that read the wrong one is caught by the value and not just by the path.
+        which = "mcp" if request.path.endswith("/mcp") else "root"
+        return Reply(body=json.dumps({"resource": identifiers[which]}))
 
     stub = serve(responder)
     oauth = OAuthClient(stub.base_url)
     try:
-        await oauth.discover_protected_resource()
-        await oauth.discover_protected_resource("/mcp")
+        root = await oauth.discover_protected_resource()
+        mcp = await oauth.discover_protected_resource("/mcp")
     finally:
         await oauth.aclose()
 
+    assert root.resource == identifiers["root"]
+    assert mcp.resource == identifiers["mcp"]
     assert [c.path for c in stub.calls] == [
-        "/.well-known/oauth-protected-resource",
-        "/.well-known/oauth-protected-resource/mcp",
+        _endpoint_path(endpoints, "protectedResource"),
+        _endpoint_path(endpoints, "protectedResourceMcp"),
     ]
+
+
+def _endpoint_path(endpoints: Any, operation: str) -> str:
+    for row in endpoints["resources"]["oauth"]:
+        if row["operation"] == operation:
+            return str(row["path"])
+    raise AssertionError(f"the contract names no oauth.{operation}")
+
+
+async def test_pairing_names_no_resource(serve: Any) -> None:
+    """Pairing must stay unbound, and the reason is not visible from the call site.
+
+    ``/api/v1/pairing/claim`` mints its authorization code server-side and cannot record
+    a resource, so a token request naming one is refused — every paired device breaks at
+    once. Nothing in ``pair`` itself says so, which is why this is pinned here: pushing
+    ``resource`` down into the shared ``_exchange`` helper would do it silently.
+    """
+    holder: dict[str, str] = {}
+
+    def responder(request: Any, index: int) -> Reply:
+        if request.path == "/api/v1/pairing/claim":
+            return Reply(
+                body=json.dumps(
+                    {"code": "ac_x", "redirectUri": "imogen://oauth", "scope": "library:read"}
+                )
+            )
+        if request.path == "/oauth/register":
+            return Reply(body=json.dumps({"client_id": "CLIENT"}))
+        return _oauth_responder(holder)(request, index)
+
+    stub = serve(responder)
+    holder["base_url"] = stub.base_url
+
+    oauth = OAuthClient(stub.base_url)
+    try:
+        await oauth.pair("imog_pair_x", "A Device", "imogen://oauth")
+    finally:
+        await oauth.aclose()
+
+    exchanges = [c for c in stub.calls if c.path == "/oauth/token"]
+    assert exchanges, "pairing did not reach the token endpoint"
+    for call in exchanges:
+        assert "resource" not in parse_qs(call.body.decode(), keep_blank_values=True)

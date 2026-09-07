@@ -40,9 +40,11 @@ data class PendingAuthorization(
      * The RFC 8707 resource this authorization asked for, or null for a token valid at
      * every surface. Carried here rather than passed again at the exchange because the
      * server refuses a token request naming a resource the code did not record: the two
-     * halves cannot disagree if only one of them holds it.
+     * halves cannot disagree if only one of them holds it. Required rather than
+     * defaulted: an app rebuilds this after the browser round trip, and a default would
+     * silently drop the binding on the one path that has to reconstruct it by hand.
      */
-    val resource: String? = null,
+    val resource: String?,
 )
 
 data class StoredTokens(

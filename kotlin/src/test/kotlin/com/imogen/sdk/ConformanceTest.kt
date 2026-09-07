@@ -1,5 +1,7 @@
 package com.imogen.sdk
 
+import io.ktor.http.Url
+import io.ktor.http.parseQueryString
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.test.runTest
 import kotlinx.serialization.json.Json
@@ -10,8 +12,6 @@ import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
-import io.ktor.http.Url
-import io.ktor.http.parseQueryString
 import kotlinx.serialization.KSerializer
 import kotlinx.serialization.serializer
 import java.io.File
@@ -486,16 +486,27 @@ class ConformanceTest {
     /** Answers discovery, then hands back a token for whatever is exchanged. */
     private fun oauthReply(request: Recorded, index: Int): Reply =
         if (request.path == "/.well-known/oauth-authorization-server") {
-            Reply.json(
-                """{"issuer":"$BASE",""" +
-                    """"authorization_endpoint":"$BASE/oauth/authorize",""" +
-                    """"token_endpoint":"$BASE/oauth/token"}"""
+            val fields = listOf(
+                """"issuer":"$BASE"""",
+                """"authorization_endpoint":"$BASE/oauth/authorize"""",
+                """"token_endpoint":"$BASE/oauth/token"""",
+                """"registration_endpoint":"$BASE/oauth/register"""",
             )
+            Reply.json(fields.joinToString(",", prefix = "{", postfix = "}"))
         } else {
             Reply.json(
                 """{"access_token":"at","token_type":"Bearer","expires_in":3600,"scope":"library:read"}"""
             )
         }
+
+    /** The path the contract gives for one `oauth` operation. */
+    private fun oauthPath(operation: String): String {
+        val rows = fixture("endpoints.json")["resources"]!!.jsonObject["oauth"] as JsonArray
+        val row = rows.map { it.jsonObject }.firstOrNull {
+            it["operation"]!!.jsonPrimitive.content == operation
+        } ?: fail("the contract names no oauth.$operation")
+        return row["path"]!!.jsonPrimitive.content
+    }
 
     @Test
     fun `the resource indicator travels on both legs or neither`() = runTest {
@@ -536,22 +547,59 @@ class ConformanceTest {
 
     @Test
     fun `each resource identifier is read from its document`() = runTest {
-        val stub = Stub { _, _ ->
-            Reply.json("""{"resource":"https://photos.example.test/mcp"}""")
+        val identifiers = fixture("endpoints.json")["oauthResourceIndicator"]!!
+            .jsonObject["identifiers"]!!.jsonObject
+        val root = identifiers["root"]!!.jsonPrimitive.content
+        val mcp = identifiers["mcp"]!!.jsonPrimitive.content
+
+        val stub = Stub { request, _ ->
+            // Answers with the identifier for whichever document was asked for, so a
+            // client that read the wrong one is caught by the value and not just by the
+            // path.
+            val resource = if (request.path.endsWith("/mcp")) mcp else root
+            Reply.json("""{"resource":"$resource"}""")
         }
 
         OAuthClient(BASE, stub.engine).use { oauth ->
-            oauth.discoverProtectedResource()
-            oauth.discoverProtectedResource(ProtectedResourcePath.MCP)
+            assertEquals(root, oauth.discoverProtectedResource().resource)
+            assertEquals(mcp, oauth.discoverProtectedResource(ProtectedResourcePath.MCP).resource)
         }
 
         assertEquals(
-            listOf(
-                "/.well-known/oauth-protected-resource",
-                "/.well-known/oauth-protected-resource/mcp",
-            ),
+            listOf(oauthPath("protectedResource"), oauthPath("protectedResourceMcp")),
             stub.calls.map { it.path },
         )
+    }
+
+    /**
+     * Pairing must stay unbound, and the reason is not visible from the call site.
+     *
+     * `/api/v1/pairing/claim` mints its authorization code server-side and cannot record a
+     * resource, so a token request naming one is refused — every paired device breaks at
+     * once. Nothing in [OAuthClient.pair] itself says so, which is why this is pinned
+     * here: pushing `resource` down into the shared exchange helper would do it silently.
+     */
+    @Test
+    fun `pairing names no resource`() = runTest {
+        val stub = Stub { request, index ->
+            when (request.path) {
+                "/oauth/register" -> Reply.json("""{"client_id":"CLIENT"}""")
+                "/api/v1/pairing/claim" -> Reply.json(
+                    """{"code":"ac_x","redirectUri":"imogen://oauth","scope":"library:read"}"""
+                )
+                else -> oauthReply(request, index)
+            }
+        }
+
+        OAuthClient(BASE, stub.engine).use { oauth ->
+            oauth.pair("imog_pair_x", "A Device", "imogen://oauth")
+        }
+
+        val exchanges = stub.calls.filter { it.path == "/oauth/token" }
+        assertTrue(exchanges.isNotEmpty(), "pairing did not reach the token endpoint")
+        for (call in exchanges) {
+            assertNull(parseQueryString(String(call.body))["resource"])
+        }
     }
 
     private fun expected(value: JsonElement): String? =

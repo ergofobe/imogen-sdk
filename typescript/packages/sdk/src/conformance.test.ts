@@ -281,21 +281,30 @@ describe('the RFC 8707 resource indicator', () => {
   }
 
   test('reads each identifier from the resource document rather than building it', async () => {
+    const { root, mcp } = endpoints.oauthResourceIndicator.identifiers
+    const wanted = (operation: string): string => {
+      const row = endpoints.resources.oauth.find((entry) => entry.operation === operation)
+      if (!row) throw new Error(`the contract names no oauth.${operation}`)
+      return row.path
+    }
+
     const seen: string[] = []
     const fetch: FetchLike = async (input) => {
       const url = new URL(typeof input === 'string' ? input : input.toString())
       seen.push(url.pathname)
-      return Response.json({ resource: `${BASE}/mcp`, authorization_servers: [BASE] })
+      // Answers with the identifier for whichever document was asked for, so a client
+      // that read the wrong one is caught by the value and not just by the path.
+      return Response.json({
+        resource: url.pathname.endsWith('/mcp') ? mcp : root,
+        authorization_servers: [root],
+      })
     }
 
     const oauth = new OAuthClient(BASE, fetch)
-    await oauth.discoverProtectedResource()
-    await oauth.discoverProtectedResource('/mcp')
+    expect((await oauth.discoverProtectedResource()).resource).toBe(root)
+    expect((await oauth.discoverProtectedResource('/mcp')).resource).toBe(mcp)
 
-    expect(seen).toEqual([
-      '/.well-known/oauth-protected-resource',
-      '/.well-known/oauth-protected-resource/mcp',
-    ])
+    expect(seen).toEqual([wanted('protectedResource'), wanted('protectedResourceMcp')])
   })
 
   test('a token request carries no empty resource when none was authorized', async () => {

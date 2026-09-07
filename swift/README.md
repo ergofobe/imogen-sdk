@@ -119,6 +119,21 @@ let stored = try await oauth.completeAuthorization(pending, callbackURL: callbac
 Hold `pending` until the redirect comes back — it carries the PKCE verifier and the state
 that stops a code from another session being injected.
 
+By default the token is valid at every surface. Passing the RFC 8707 `resource` binds it
+to one and gets it refused everywhere else. Read the identifier rather than building it —
+the server compares against the one spelling it publishes:
+
+```swift
+let mcp = try await oauth.discoverProtectedResource(.mcp)
+let pending = try await oauth.beginAuthorization(
+    clientId: registered.clientId, redirectURI: "myapp://oauth", resource: mcp.resource
+)
+```
+
+`resource` travels on the authorization request and the token exchange together, carried on
+`pending` so the two cannot disagree — the server refuses a token request naming a resource
+the authorization code did not record.
+
 ## A note on types
 
 Timestamps are `String`, not `Date`. The contract specifies ISO-8601 and nothing else, and
