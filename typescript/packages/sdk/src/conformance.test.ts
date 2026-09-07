@@ -10,6 +10,7 @@ import {
   FaceStatus,
   LibraryStats,
   Person,
+  ProtectedResourceMetadata,
   QueueHealth,
   RESUMABLE_THRESHOLD_BYTES,
   ServerSettings,
@@ -27,6 +28,7 @@ import models from '../../../../conformance/models.json' with { type: 'json' }
 import { ImogenClient } from './client.ts'
 import { ImogenError } from './errors.ts'
 import type { FetchLike } from './http.ts'
+import { OAuthClient } from './oauth.ts'
 
 const BASE = 'https://photos.example.test'
 
@@ -182,6 +184,9 @@ describe('endpoint table', () => {
       }),
 
     'oauth.discover': (c) => c.http.send('GET', '/.well-known/oauth-authorization-server'),
+    'oauth.protectedResource': (c) => c.http.send('GET', '/.well-known/oauth-protected-resource'),
+    'oauth.protectedResourceMcp': (c) =>
+      c.http.send('GET', '/.well-known/oauth-protected-resource/mcp'),
   }
 
   const placeholders: Record<string, string> = {
@@ -228,6 +233,85 @@ describe('endpoint table', () => {
   }
 })
 
+describe('the RFC 8707 resource indicator', () => {
+  const AUTHORIZE = `${BASE}/oauth/authorize`
+  const TOKEN = `${BASE}/oauth/token`
+
+  /** Answers discovery, records the token request, and hands back a token. */
+  function oauthStub(): { bodies: string[]; fetch: FetchLike } {
+    const bodies: string[] = []
+    const fetch: FetchLike = async (input, init) => {
+      const url = new URL(typeof input === 'string' ? input : input.toString())
+      if (url.pathname === '/.well-known/oauth-authorization-server') {
+        return Response.json({ authorization_endpoint: AUTHORIZE, token_endpoint: TOKEN })
+      }
+      bodies.push(String(init?.body))
+      return Response.json({
+        access_token: 'at',
+        token_type: 'Bearer',
+        expires_in: 3600,
+        scope: 'library:read',
+      })
+    }
+    return { bodies, fetch }
+  }
+
+  for (const item of endpoints.oauthResourceIndicator.cases) {
+    test(item.name, async () => {
+      const { bodies, fetch } = oauthStub()
+      const oauth = new OAuthClient(BASE, fetch)
+
+      const pending = await oauth.beginAuthorization(
+        'CLIENT',
+        'app://callback',
+        ['library:read'],
+        item.resource ?? undefined,
+      )
+
+      const authorizationParam = new URL(pending.authorizationUrl).searchParams.get('resource')
+      expect(authorizationParam).toEqual(item.expectAuthorizationParam)
+
+      await oauth.completeAuthorization(
+        pending,
+        `app://callback?code=CODE&state=${encodeURIComponent(pending.state)}`,
+      )
+      const tokenParam = new URLSearchParams(bodies[0]).get('resource')
+      expect(tokenParam).toEqual(item.expectTokenParam)
+    })
+  }
+
+  test('reads each identifier from the resource document rather than building it', async () => {
+    const seen: string[] = []
+    const fetch: FetchLike = async (input) => {
+      const url = new URL(typeof input === 'string' ? input : input.toString())
+      seen.push(url.pathname)
+      return Response.json({ resource: `${BASE}/mcp`, authorization_servers: [BASE] })
+    }
+
+    const oauth = new OAuthClient(BASE, fetch)
+    await oauth.discoverProtectedResource()
+    await oauth.discoverProtectedResource('/mcp')
+
+    expect(seen).toEqual([
+      '/.well-known/oauth-protected-resource',
+      '/.well-known/oauth-protected-resource/mcp',
+    ])
+  })
+
+  test('a token request carries no empty resource when none was authorized', async () => {
+    const { bodies, fetch } = oauthStub()
+    const oauth = new OAuthClient(BASE, fetch)
+    const pending = await oauth.beginAuthorization('CLIENT', 'app://callback')
+
+    await oauth.completeAuthorization(
+      pending,
+      `app://callback?code=CODE&state=${encodeURIComponent(pending.state)}`,
+    )
+    // `resource=` is not the same as no resource: the server reads it as invalid_target.
+    expect(new URLSearchParams(bodies[0]).has('resource')).toBe(false)
+  })
+})
+
 describe('models decode as the contract says', () => {
   const schemas: Record<string, { parse: (input: unknown) => unknown }> = {
     asset: Asset,
@@ -249,6 +333,7 @@ describe('models decode as the contract says', () => {
     storageReport: StorageReport,
     serverSettings: ServerSettings,
     tokenResponse: TokenResponse,
+    protectedResourceMetadata: ProtectedResourceMetadata,
   }
 
   function at(value: unknown, path: string): unknown {
