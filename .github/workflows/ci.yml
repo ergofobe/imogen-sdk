@@ -156,19 +156,23 @@ jobs:
           echo "Checked against imogen-server $tag" >> "$GITHUB_STEP_SUMMARY"
 
       - name: Start ${{ steps.server.outputs.tag }}
+        # Through the environment rather than interpolated into the script: the value comes
+        # back from an API call, and `run:` splices before the shell ever sees a quote.
+        env:
+          IMAGE: ${{ steps.server.outputs.image }}
         run: |
           set -euo pipefail
           # Deliberately not :latest — that tracks main, which is the wrong side of the
           # question. A missing image fails the job here rather than falling through to
           # something else and reporting a compatibility that was never tested.
-          docker pull "${{ steps.server.outputs.image }}"
+          docker pull "$IMAGE"
           # --network host so the container reaches the postgres service on the runner's
           # own localhost, and the runner reaches the server the same way.
           docker run -d --name imogen-server --network host \
             -e DATABASE_URL=postgres://imogen:imogen@localhost:5432/imogen \
             -e IMOGEN_PUBLIC_URL=http://localhost:3000 \
             -e IMOGEN_ALLOW_SIGNUP=true \
-            "${{ steps.server.outputs.image }}"
+            "$IMAGE"
           # The image runs its own migrations before it serves, so there are none to run here.
           for _ in $(seq 1 60); do
             curl -sf -o /dev/null http://localhost:3000/api/v1/health && break

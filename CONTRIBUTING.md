@@ -97,7 +97,7 @@ That is what the `forward-compat` job in CI checks. It resolves the latest `imog
 release at run time, starts that image against a Postgres service container, and runs
 `typescript/live/forward-compat.test.ts` against it over real HTTP: discovery, both RFC 9728
 protected-resource documents, an authorization with and without a `resource`, the token
-exchange, and one authenticated read.
+exchange, and an authenticated read on each of the two tokens that carry one.
 
 **Read a red run before rewriting anything.** It fails for four reasons that are not about
 your change: ghcr was unreachable; a server release was published minutes ago and its image
@@ -116,7 +116,7 @@ The job checks that a released server does not *choke* on something new, never t
 the current server gives a new field meaning is `sdk-contract.test.ts`'s question, on the
 other side of the split.
 
-What it covers is the auth handshake and a single authenticated read, and nothing else:
+What it covers is the auth handshake and a couple of authenticated reads, and nothing else:
 timeline, albums, upload, pairing and vault are not exercised, and `assets.list()` is called
 with no query, so a new optional request parameter would never reach a released server. Add
 to this file when you add surface that a released server has to tolerate — nothing forces
@@ -129,6 +129,10 @@ docker network create imogen-live
 docker run -d --name imogen-live-db --network imogen-live \
   -e POSTGRES_USER=imogen -e POSTGRES_PASSWORD=imogen -e POSTGRES_DB=imogen \
   pgvector/pgvector:pg17
+
+# Not optional: the image migrates on the way up and its migration connects exactly once,
+# so a server started against an initdb still in progress exits before it ever serves.
+until docker exec imogen-live-db pg_isready -U imogen -d imogen; do sleep 1; done
 
 # The published images are amd64-only, so Apple Silicon needs --platform and emulation.
 # Derived, not typed: ghcr tags carry no `v` and the release moves without telling you.

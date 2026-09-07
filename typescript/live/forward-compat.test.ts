@@ -165,10 +165,10 @@ describe('an authorization this client can complete', () => {
 
     // Where this stops: the token is issued, and that is the whole forward-compatibility
     // claim. Not asserted — that it then works at the REST API. A server that enforces
-    // binding is *right* to refuse an MCP-bound token there, and imogen-server's
-    // sdk-contract.test.ts asserts exactly that refusal on purpose. Reaching for a read
-    // here would assert the negation of the server's own contract, and go red on the
-    // release that implements it.
+    // binding is *right* to refuse an MCP-bound token there; imogen-server's
+    // sdk-contract.test.ts asserts the mirror of it, that an API-bound token gets 401 at
+    // /mcp, and the enforcement is symmetric. Reaching for a read here would assert the
+    // negation of the server's own contract, and go red on the release that implements it.
     expect(accessToken).toBeString()
   })
 })
