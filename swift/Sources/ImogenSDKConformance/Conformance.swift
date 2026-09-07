@@ -611,36 +611,62 @@ enum Conformance {
         )
     }
 
-    /// Pairing must stay unbound, and the reason is not visible from the call site.
+    /// A paired device binds its token by naming the resource on the claim.
     ///
-    /// `/api/v1/pairing/claim` mints its authorization code server-side and cannot record
-    /// a resource, so a token request naming one is refused — every paired device breaks
-    /// at once. Nothing in ``OAuthClient/pair(pairingCode:clientName:redirectURI:deviceName:scopes:)``
-    /// itself says so, which is why this is pinned here: pushing `resource` down into the
-    /// shared exchange helper would do it silently.
-    static func testPairingNamesNoResource() async throws {
-        let session = stubbedSession { request, index in
-            switch request.path {
-            case "/oauth/register": return .json(#"{"client_id":"CLIENT"}"#)
-            case "/api/v1/pairing/claim":
-                return .json(
-                    #"{"code":"ac_x","redirectUri":"imogen://oauth","scope":"library:read"}"#)
-            default: return Conformance.oauthReply(request, index)
+    /// The reason is not visible from the call site: the claim is where the code is
+    /// minted, so it is the only leg that can record a resource, and the exchange has to
+    /// echo what was recorded or the server answers invalid_target. Pinned here because
+    /// pushing `resource` down into the shared `exchange` helper would get one leg and
+    /// not the other.
+    static func testThePairingResourceIndicatorTravelsOnBothLegsOrNeither() async throws {
+        let endpoints = try Conformance.fixture("endpoints.json")
+        let indicator = endpoints["pairingResourceIndicator"] as! [String: Any]
+
+        for case let item as [String: Any] in indicator["cases"] as! [Any] {
+            let name = item["name"] as! String
+            let resource = item["resource"] as? String
+
+            let session = stubbedSession { request, index in
+                switch request.path {
+                case "/oauth/register": return .json(#"{"client_id":"CLIENT"}"#)
+                case "/api/v1/pairing/claim":
+                    return .json(
+                        #"{"code":"ac_x","redirectUri":"imogen://oauth","scope":"library:read"}"#)
+                default: return Conformance.oauthReply(request, index)
+                }
             }
-        }
-        let oauth = OAuthClient(baseURL: base, session: session)
+            let oauth = OAuthClient(baseURL: base, session: session)
 
-        _ = try await oauth.pair(
-            pairingCode: "imog_pair_x", clientName: "A Device", redirectURI: "imogen://oauth"
-        )
-
-        let exchanges = StubState.shared.calls.filter { $0.path == "/oauth/token" }
-        expectTrue(!exchanges.isEmpty, "pairing did not reach the token endpoint")
-        for call in exchanges {
-            expectNil(
-                formValue(String(decoding: call.body, as: UTF8.self), "resource"),
-                "the pairing exchange"
+            _ = try await oauth.pair(
+                pairingCode: "imog_pair_x", clientName: "A Device",
+                redirectURI: "imogen://oauth", resource: resource
             )
+
+            let claims = StubState.shared.calls.filter { $0.path == "/api/v1/pairing/claim" }
+            expectTrue(!claims.isEmpty, "\(name): pairing did not reach the claim endpoint")
+            // A null is not the same as an absent key: the request schema refuses one, so
+            // the unbound case asserts the field is gone rather than merely falsy, which
+            // casting it to String? would not distinguish.
+            let claimed =
+                (try? JSONSerialization.jsonObject(with: claims[0].body)) as? [String: Any]
+            // `as? String` on both sides: a JSON null arrives from JSONSerialization as
+            // NSNull, which is not nil, and comparing against nil would read it as present.
+            expectEqual(
+                claimed?["resource"] != nil, item["expectClaimField"] as? String != nil,
+                "\(name): the claim carries a resource key")
+            expectEqual(
+                claimed?["resource"] as? String, item["expectClaimField"] as? String,
+                "\(name): the claim")
+
+            let exchanges = StubState.shared.calls.filter { $0.path == "/oauth/token" }
+            expectTrue(!exchanges.isEmpty, "\(name): pairing did not reach the token endpoint")
+            for call in exchanges {
+                expectEqual(
+                    formValue(String(decoding: call.body, as: UTF8.self), "resource"),
+                    item["expectTokenParam"] as? String,
+                    "\(name): the token request"
+                )
+            }
         }
     }
 

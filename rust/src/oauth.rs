@@ -183,8 +183,8 @@ impl OAuthClient {
 
     /// `resource` is RFC 8707. When given, the token is bound to that one resource and is
     /// refused everywhere else; take the value from [`Self::discover_protected_resource`].
-    /// Pass `None` for a token valid at every surface, which is what pairing has to use —
-    /// the claim endpoint mints its code server-side and cannot record a resource.
+    /// Pass `None` for a token valid at every surface. A device that pairs rather than
+    /// opening a browser names its resource on the claim instead; see [`Self::pair`].
     pub async fn begin_authorization(
         &self,
         client_id: &str,
@@ -268,6 +268,12 @@ impl OAuthClient {
     /// code, and exchanges it. The verifier never leaves this process, so the pairing code
     /// on its own — photographed off somebody's screen, say — cannot be turned into a
     /// session.
+    ///
+    /// `resource` is RFC 8707, and travels on the claim rather than on an authorization
+    /// request there is none of; take the value from
+    /// [`Self::discover_protected_resource`]. It is echoed on the exchange, so a server
+    /// that recorded none answers `invalid_target` — which is how a device learns it
+    /// cannot bind, rather than quietly holding a token good everywhere.
     pub async fn pair(
         &self,
         pairing_code: &str,
@@ -275,6 +281,7 @@ impl OAuthClient {
         redirect_uri: &str,
         device_name: Option<&str>,
         scopes: Option<&[String]>,
+        resource: Option<&str>,
     ) -> Result<PairedDevice> {
         let registered = self
             .register(client_name, &[redirect_uri.to_string()], scopes)
@@ -289,6 +296,7 @@ impl OAuthClient {
         );
         request.scope = Some(scope_string(scopes));
         request.device_name = device_name.map(str::to_string);
+        request.resource = resource.map(str::to_string);
 
         let response = self
             .http
@@ -308,15 +316,17 @@ impl OAuthClient {
         }
 
         let claim: PairingClaim = serde_json::from_str(&response.text().await?)?;
-        let tokens = self
-            .exchange(&[
-                ("grant_type", "authorization_code"),
-                ("client_id", &registered.client_id),
-                ("code", &claim.code),
-                ("code_verifier", &verifier),
-                ("redirect_uri", &claim.redirect_uri),
-            ])
-            .await?;
+        let mut form = vec![
+            ("grant_type", "authorization_code"),
+            ("client_id", registered.client_id.as_str()),
+            ("code", claim.code.as_str()),
+            ("code_verifier", verifier.as_str()),
+            ("redirect_uri", claim.redirect_uri.as_str()),
+        ];
+        if let Some(resource) = resource {
+            form.push(("resource", resource));
+        }
+        let tokens = self.exchange(&form).await?;
 
         Ok(PairedDevice {
             client_id: registered.client_id,

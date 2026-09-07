@@ -798,6 +798,11 @@ public struct PairingClaimRequest: Codable, Hashable, Sendable {
     public var scope: String?
     /// Shown to whoever made the ticket, and in the connected-applications list.
     public var deviceName: String?
+    /// RFC 8707. The resource this device's token is for, recorded on the code the claim
+    /// mints so the exchange is bound to it just as a browser-flow code would be. Nil for
+    /// a token good at every surface, which is what every device paired before this
+    /// existed already holds.
+    public var resource: String?
 
     public init(
         code: String,
@@ -806,7 +811,8 @@ public struct PairingClaimRequest: Codable, Hashable, Sendable {
         codeChallenge: String,
         codeChallengeMethod: String = "S256",
         scope: String? = nil,
-        deviceName: String? = nil
+        deviceName: String? = nil,
+        resource: String? = nil
     ) {
         self.code = code
         self.clientId = clientId
@@ -815,6 +821,7 @@ public struct PairingClaimRequest: Codable, Hashable, Sendable {
         self.codeChallengeMethod = codeChallengeMethod
         self.scope = scope
         self.deviceName = deviceName
+        self.resource = resource
     }
 }
 

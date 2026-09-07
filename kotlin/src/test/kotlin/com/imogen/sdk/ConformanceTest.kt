@@ -573,33 +573,62 @@ class ConformanceTest {
     }
 
     /**
-     * Pairing must stay unbound, and the reason is not visible from the call site.
+     * A paired device binds its token by naming the resource on the claim.
      *
-     * `/api/v1/pairing/claim` mints its authorization code server-side and cannot record a
-     * resource, so a token request naming one is refused — every paired device breaks at
-     * once. Nothing in [OAuthClient.pair] itself says so, which is why this is pinned
-     * here: pushing `resource` down into the shared exchange helper would do it silently.
+     * The reason is not visible from the call site: the claim is where the code is
+     * minted, so it is the only leg that can record a resource, and the exchange has to
+     * echo what was recorded or the server answers invalid_target. Pinned here because
+     * pushing `resource` down into the shared exchange helper would get one leg and not
+     * the other.
      */
     @Test
-    fun `pairing names no resource`() = runTest {
-        val stub = Stub { request, index ->
-            when (request.path) {
-                "/oauth/register" -> Reply.json("""{"client_id":"CLIENT"}""")
-                "/api/v1/pairing/claim" -> Reply.json(
-                    """{"code":"ac_x","redirectUri":"imogen://oauth","scope":"library:read"}"""
-                )
-                else -> oauthReply(request, index)
+    fun `the pairing resource indicator travels on both legs or neither`() = runTest {
+        val cases = fixture("endpoints.json")["pairingResourceIndicator"]!!
+            .jsonObject["cases"] as JsonArray
+
+        for (case in cases) {
+            val item = case.jsonObject
+            val name = item["name"]!!.jsonPrimitive.content
+            val resource = expected(item["resource"]!!)
+            val stub = Stub { request, index ->
+                when (request.path) {
+                    "/oauth/register" -> Reply.json("""{"client_id":"CLIENT"}""")
+                    "/api/v1/pairing/claim" -> Reply.json(
+                        """{"code":"ac_x","redirectUri":"imogen://oauth","scope":"library:read"}"""
+                    )
+                    else -> oauthReply(request, index)
+                }
             }
-        }
 
-        OAuthClient(BASE, stub.engine).use { oauth ->
-            oauth.pair("imog_pair_x", "A Device", "imogen://oauth")
-        }
+            OAuthClient(BASE, stub.engine).use { oauth ->
+                oauth.pair("imog_pair_x", "A Device", "imogen://oauth", resource = resource)
+            }
 
-        val exchanges = stub.calls.filter { it.path == "/oauth/token" }
-        assertTrue(exchanges.isNotEmpty(), "pairing did not reach the token endpoint")
-        for (call in exchanges) {
-            assertNull(parseQueryString(String(call.body))["resource"])
+            val claims = stub.calls.filter { it.path == "/api/v1/pairing/claim" }
+            assertTrue(claims.isNotEmpty(), "$name: pairing did not reach the claim endpoint")
+            // A null is not the same as an absent key: the request schema refuses one, so
+            // the unbound case asserts the field is gone rather than merely falsy.
+            val claimed = Json.parseToJsonElement(String(claims[0].body)).jsonObject
+            assertEquals(
+                item["expectClaimField"] !is JsonNull,
+                claimed.containsKey("resource"),
+                "$name: the claim carries a resource key",
+            )
+            assertEquals(
+                expected(item["expectClaimField"]!!),
+                claimed["resource"]?.jsonPrimitive?.content,
+                "$name: the claim",
+            )
+
+            val exchanges = stub.calls.filter { it.path == "/oauth/token" }
+            assertTrue(exchanges.isNotEmpty(), "$name: pairing did not reach the token endpoint")
+            for (call in exchanges) {
+                assertEquals(
+                    expected(item["expectTokenParam"]!!),
+                    parseQueryString(String(call.body))["resource"],
+                    "$name: the token request",
+                )
+            }
         }
     }
 

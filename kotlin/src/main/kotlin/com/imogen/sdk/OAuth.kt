@@ -145,8 +145,8 @@ class OAuthClient(baseUrl: String, engine: KtorClient? = null) : AutoCloseable {
     /**
      * @param resource RFC 8707. When given, the token is bound to that one resource and is
      *   refused everywhere else; take the value from [discoverProtectedResource]. Leave it
-     *   null for a token valid at every surface, which is what pairing has to use — the
-     *   claim endpoint mints its code server-side and cannot record a resource.
+     *   null for a token valid at every surface. A device that pairs rather than opening a
+     *   browser names its resource on the claim instead; see [pair].
      */
     suspend fun beginAuthorization(
         clientId: String,
@@ -224,6 +224,12 @@ class OAuthClient(baseUrl: String, engine: KtorClient? = null) : AutoCloseable {
      * val oauth = OAuthClient(invitation.serverUrl)
      * val paired = oauth.pair(invitation.code, "imogen for Android", "imogen://oauth", Build.MODEL)
      * ```
+     *
+     * @param resource RFC 8707, and it travels on the claim rather than on an authorization
+     *   request there is none of; take the value from [discoverProtectedResource]. It is
+     *   echoed on the exchange, so a server that recorded none answers `invalid_target` —
+     *   which is how a device learns it cannot bind, rather than quietly holding a token
+     *   good everywhere.
      */
     suspend fun pair(
         pairingCode: String,
@@ -231,6 +237,7 @@ class OAuthClient(baseUrl: String, engine: KtorClient? = null) : AutoCloseable {
         redirectUri: String,
         deviceName: String? = null,
         scopes: List<String> = DEFAULT_SCOPES,
+        resource: String? = null,
     ): PairedDevice {
         val registered = register(clientName, listOf(redirectUri), scopes)
         val verifier = randomString(32)
@@ -246,6 +253,7 @@ class OAuthClient(baseUrl: String, engine: KtorClient? = null) : AutoCloseable {
                         codeChallenge = s256(verifier),
                         scope = scopes.joinToString(" "),
                         deviceName = deviceName,
+                        resource = resource,
                     )
                 )
             )
@@ -261,13 +269,14 @@ class OAuthClient(baseUrl: String, engine: KtorClient? = null) : AutoCloseable {
 
         val claim = wireJson.decodeFromString<PairingClaim>(response.bodyAsText())
         val tokens = exchange(
-            mapOf(
-                "grant_type" to "authorization_code",
-                "client_id" to registered.clientId,
-                "code" to claim.code,
-                "code_verifier" to verifier,
-                "redirect_uri" to claim.redirectUri,
-            )
+            buildMap {
+                put("grant_type", "authorization_code")
+                put("client_id", registered.clientId)
+                put("code", claim.code)
+                put("code_verifier", verifier)
+                put("redirect_uri", claim.redirectUri)
+                resource?.let { put("resource", it) }
+            }
         )
         return PairedDevice(registered.clientId, tokens, claim.scope)
     }

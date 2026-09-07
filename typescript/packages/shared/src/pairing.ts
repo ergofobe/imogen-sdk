@@ -61,6 +61,18 @@ export const PairingClaimRequest = z.object({
   scope: z.string().max(512).optional(),
   /** Shown to the person who made the ticket, and in the connected-apps list. */
   deviceName: z.string().min(1).max(128).optional(),
+  /**
+   * RFC 8707. The resource the device's token is for, which the server records on the
+   * code it mints so the later exchange is bound to it just as a browser-flow code is.
+   *
+   * Left a bare string rather than a URL: what counts as a resource identifier is the
+   * set the server publishes, not anything a schema can know, so the one place that
+   * decides stays the one place that decides. A resource this server does not publish
+   * comes back as a 400 on the claim, and as `invalid_target` on the exchange that
+   * echoes it. Optional in both directions — omit it for a token good at every surface,
+   * which is what every device paired before this existed already holds.
+   */
+  resource: z.string().min(1).max(2048).optional(),
 })
 export type PairingClaimRequest = z.infer<typeof PairingClaimRequest>
 

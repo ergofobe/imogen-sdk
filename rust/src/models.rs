@@ -864,6 +864,12 @@ pub struct PairingClaimRequest {
     /// Shown to whoever made the ticket, and in the connected-applications list.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub device_name: Option<String>,
+    /// RFC 8707. The resource this device's token is for, recorded on the code the claim
+    /// mints so the exchange is bound to it just as a browser-flow code would be. `None`
+    /// for a token good at every surface, which is what every device paired before this
+    /// existed already holds.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub resource: Option<String>,
 }
 
 impl PairingClaimRequest {
@@ -881,6 +887,7 @@ impl PairingClaimRequest {
             code_challenge_method: "S256".into(),
             scope: None,
             device_name: None,
+            resource: None,
         }
     }
 }

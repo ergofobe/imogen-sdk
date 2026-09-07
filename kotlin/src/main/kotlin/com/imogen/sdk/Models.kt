@@ -662,6 +662,13 @@ data class PairingClaimRequest(
     val scope: String? = null,
     /** Shown to whoever made the ticket, and in the connected-applications list. */
     val deviceName: String? = null,
+    /**
+     * RFC 8707. The resource this device's token is for, recorded on the code the claim
+     * mints so the exchange is bound to it just as a browser-flow code would be. Null for
+     * a token good at every surface, which is what every device paired before this existed
+     * already holds.
+     */
+    val resource: String? = null,
 )
 
 /**

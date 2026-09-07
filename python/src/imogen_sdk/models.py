@@ -645,6 +645,11 @@ class PairingClaimRequest(Contract):
     scope: str | None = None
     #: Shown to whoever made the ticket, and in the connected-applications list.
     device_name: str | None = None
+    #: RFC 8707. The resource this device's token is for, recorded on the code the claim
+    #: mints so the exchange is bound to it just as a browser-flow code would be. None for
+    #: a token good at every surface, which is what every device paired before this
+    #: existed already holds.
+    resource: str | None = None
 
 
 class PairingClaim(Contract):
