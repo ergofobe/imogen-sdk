@@ -8,6 +8,10 @@ import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
+import io.ktor.http.Url
+import io.ktor.http.parseQueryString
 import kotlinx.serialization.KSerializer
 import kotlinx.serialization.serializer
 import java.io.File
@@ -195,6 +199,12 @@ class ConformanceTest {
             "oauth.discover" ->
                 ({ imogen.http.send("GET", "/.well-known/oauth-authorization-server"); Unit })
 
+            "oauth.protectedResource" ->
+                ({ imogen.http.send("GET", "/.well-known/oauth-protected-resource"); Unit })
+
+            "oauth.protectedResourceMcp" ->
+                ({ imogen.http.send("GET", "/.well-known/oauth-protected-resource/mcp"); Unit })
+
             else -> return false
         }
 
@@ -305,6 +315,7 @@ class ConformanceTest {
         check<StorageReport>("storageReport")
         check<ServerSettings>("serverSettings")
         check<TokenResponse>("tokenResponse")
+        check<ProtectedResourceMetadata>("protectedResourceMetadata")
         check<PairingTicket>("pairingTicket")
         check<PairingStatus>("pairingStatusUnclaimed")
         check<PairingStatus>("pairingStatusClaimed")
@@ -469,6 +480,82 @@ class ConformanceTest {
             assertEquals(listOf("a", "b"), imogen.assets.iterate().toList().map { it.id })
         }
     }
+
+    // --- the RFC 8707 resource indicator ---
+
+    /** Answers discovery, then hands back a token for whatever is exchanged. */
+    private fun oauthReply(request: Recorded, index: Int): Reply =
+        if (request.path == "/.well-known/oauth-authorization-server") {
+            Reply.json(
+                """{"issuer":"$BASE",""" +
+                    """"authorization_endpoint":"$BASE/oauth/authorize",""" +
+                    """"token_endpoint":"$BASE/oauth/token"}"""
+            )
+        } else {
+            Reply.json(
+                """{"access_token":"at","token_type":"Bearer","expires_in":3600,"scope":"library:read"}"""
+            )
+        }
+
+    @Test
+    fun `the resource indicator travels on both legs or neither`() = runTest {
+        val cases = fixture("endpoints.json")["oauthResourceIndicator"]!!
+            .jsonObject["cases"] as JsonArray
+
+        for (case in cases) {
+            val item = case.jsonObject
+            val name = item["name"]!!.jsonPrimitive.content
+            val resource = item["resource"]!!.let { if (it is JsonNull) null else it.jsonPrimitive.content }
+            val stub = Stub(::oauthReply)
+
+            OAuthClient(BASE, stub.engine).use { oauth ->
+                val pending = oauth.beginAuthorization(
+                    "CLIENT", "app://callback", listOf("library:read"), resource
+                )
+
+                assertEquals(
+                    expected(item["expectAuthorizationParam"]!!),
+                    Url(pending.authorizationUrl).parameters["resource"],
+                    "$name: the authorization request",
+                )
+
+                val before = stub.callCount
+                oauth.completeAuthorization(
+                    pending, "app://callback?code=CODE&state=${pending.state}"
+                )
+
+                val body = String(stub.calls[before].body)
+                assertEquals(
+                    expected(item["expectTokenParam"]!!),
+                    parseQueryString(body)["resource"],
+                    "$name: the token request",
+                )
+            }
+        }
+    }
+
+    @Test
+    fun `each resource identifier is read from its document`() = runTest {
+        val stub = Stub { _, _ ->
+            Reply.json("""{"resource":"https://photos.example.test/mcp"}""")
+        }
+
+        OAuthClient(BASE, stub.engine).use { oauth ->
+            oauth.discoverProtectedResource()
+            oauth.discoverProtectedResource(ProtectedResourcePath.MCP)
+        }
+
+        assertEquals(
+            listOf(
+                "/.well-known/oauth-protected-resource",
+                "/.well-known/oauth-protected-resource/mcp",
+            ),
+            stub.calls.map { it.path },
+        )
+    }
+
+    private fun expected(value: JsonElement): String? =
+        if (value is JsonNull) null else value.jsonPrimitive.content
 
     companion object {
         const val BASE = "https://photos.example.test"

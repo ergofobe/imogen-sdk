@@ -598,6 +598,23 @@ data class AuthorizationServerMetadata(
     val codeChallengeMethodsSupported: List<String> = emptyList(),
 )
 
+/**
+ * RFC 9728 protected resource metadata.
+ *
+ * [resource] is the identifier to echo back as the RFC 8707 `resource` parameter. The
+ * server compares it against the single spelling it publishes here, so a client that
+ * rebuilds the string from its own base URL can produce a near-miss — a stray port, a
+ * trailing slash — that comes back as `invalid_target`.
+ */
+@Serializable
+data class ProtectedResourceMetadata(
+    val resource: String,
+    @SerialName("authorization_servers") val authorizationServers: List<String> = emptyList(),
+    @SerialName("scopes_supported") val scopesSupported: List<String> = emptyList(),
+    @SerialName("bearer_methods_supported") val bearerMethodsSupported: List<String> = emptyList(),
+    @SerialName("resource_documentation") val resourceDocumentation: String = "",
+)
+
 // --- pairing ---
 
 /**
