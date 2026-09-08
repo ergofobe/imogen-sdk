@@ -8,7 +8,10 @@ import io.ktor.http.HttpStatusCode
 import io.ktor.http.headersOf
 import io.ktor.http.ContentType
 import io.ktor.http.HttpHeaders
+import io.ktor.utils.io.ByteChannel
 import io.ktor.utils.io.readRemaining
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.launch
 import kotlinx.io.readByteArray
 
 /**
@@ -81,5 +84,16 @@ private suspend fun io.ktor.http.content.OutgoingContent.toByteArrayOrEmpty(): B
         is io.ktor.http.content.OutgoingContent.ByteArrayContent -> bytes()
         is io.ktor.http.content.OutgoingContent.ReadChannelContent ->
             readFrom().readRemaining().readByteArray()
+        // A multipart form is written rather than read, so it needs somewhere to be
+        // written to before there is anything to record. Concurrently, because a body
+        // larger than the channel's buffer would otherwise deadlock against itself.
+        is io.ktor.http.content.OutgoingContent.WriteChannelContent -> coroutineScope {
+            val channel = ByteChannel()
+            launch {
+                writeTo(channel)
+                channel.flushAndClose()
+            }
+            channel.readRemaining().readByteArray()
+        }
         else -> ByteArray(0)
     }
