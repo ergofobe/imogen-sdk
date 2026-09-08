@@ -1,6 +1,6 @@
 {
   "name": "@imogen/sdk",
-  "version": "0.4.0",
+  "version": "0.4.1",
   "type": "module",
   "description": "TypeScript client for the imogen photo library API",
   "license": "AGPL-3.0-or-later",
@@ -38,6 +38,6 @@
     "npm-publish": "npm publish --access public"
   },
   "dependencies": {
-    "@imogen/shared": "0.4.0"
+    "@imogen/shared": "0.4.1"
   }
 }
