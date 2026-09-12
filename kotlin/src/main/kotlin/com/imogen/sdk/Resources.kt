@@ -166,7 +166,7 @@ class Assets internal constructor(private val http: HttpClient) {
         val form = MultiPartFormDataContent(
             formData {
                 append(
-                    quoted("file"),
+                    "file",
                     bytes,
                     Headers.build {
                         append(HttpHeaders.ContentType, mimeTypeFor(file))
@@ -176,13 +176,13 @@ class Assets internal constructor(private val http: HttpClient) {
                         )
                     },
                 )
-                options.metadata.deviceAssetId?.let { append(quoted("deviceAssetId"), it) }
-                options.metadata.capturedAt?.let { append(quoted("capturedAt"), it) }
-                options.metadata.favorite?.let { append(quoted("favorite"), it.toString()) }
-                options.metadata.description?.let { append(quoted("description"), it) }
-                options.metadata.filename?.let { append(quoted("filename"), it) }
+                options.metadata.deviceAssetId?.let { append("deviceAssetId", it) }
+                options.metadata.capturedAt?.let { append("capturedAt", it) }
+                options.metadata.favorite?.let { append("favorite", it.toString()) }
+                options.metadata.description?.let { append("description", it) }
+                options.metadata.filename?.let { append("filename", it) }
                 options.metadata.location?.let {
-                    append(quoted("location"), wireJson.encodeToString(it))
+                    append("location", wireJson.encodeToString(it))
                 }
             }
         )
@@ -195,20 +195,6 @@ class Assets internal constructor(private val http: HttpClient) {
         options.onProgress?.invoke(UploadProgress(size, size))
         return result
     }
-
-    /**
-     * A part name, with the quotes the wire format wants.
-     *
-     * ktor writes `Content-Disposition: form-data; name=$key` and does not quote the value
-     * itself, so the quotes have to arrive as part of the key. Without them the WHATWG
-     * multipart parser — which Bun, undici and so the server all use — cannot tell where an
-     * unquoted name ends once `filename` follows it, and reads the file part as a field
-     * called `file; filename=`. The server then sees no `file` and rejects the upload.
-     *
-     * The metadata parts have nothing after their name and so survived unquoted, but only
-     * by luck; they are quoted here too rather than left resting on that.
-     */
-    private fun quoted(name: String) = "\"$name\""
 
     private suspend fun uploadResumable(
         file: File,

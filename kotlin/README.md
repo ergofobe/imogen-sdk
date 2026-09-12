@@ -7,8 +7,9 @@ API. JVM, Java 21 or later.
 dependencies {
     implementation("com.imogen:imogen-sdk:0.4.1")
     // Pick a ktor engine. CIO has no further dependencies; OkHttp is the usual choice
-    // on Android.
-    runtimeOnly("io.ktor:ktor-client-cio:3.0.3")
+    // on Android. No version: the SDK constrains the ktor modules it needs kept in step,
+    // so naming one here would only be a second place for it to go stale.
+    runtimeOnly("io.ktor:ktor-client-cio")
 }
 ```
 

@@ -9,13 +9,17 @@ import kotlin.test.assertTrue
 /**
  * What the upload actually puts on the wire.
  *
- * Not a detail: ktor writes the `name` parameter of a part's Content-Disposition
- * unquoted, and the WHATWG multipart parser — which Bun, undici and therefore the server's
- * `parseBody` all implement — cannot tell where an unquoted name ends when `filename`
+ * Not a detail: the WHATWG multipart parser — which Bun, undici and therefore the server's
+ * `parseBody` all implement — cannot tell where an *unquoted* name ends when `filename`
  * follows it. `name=file; filename="x.jpg"` is read as a field called `file; filename=`,
  * so the server sees no `file` at all and rejects every upload. Nothing in the conformance
  * suite can catch that: it compares fixtures between ports, and this is an encoding defect
  * no fixture describes.
+ *
+ * ktor rendered names unquoted through 3.4.x, which is why the client used to quote them
+ * by hand; 3.5.2 quotes them itself (ktorio/ktor#5157) and the hand-quoting is gone. This
+ * test does not care which side supplies the quotes — it asserts only the bytes — so it
+ * guards a ktor downgrade and a regression on either side alike.
  */
 class UploadMultipartTest {
 
@@ -60,8 +64,11 @@ class UploadMultipartTest {
 
         assertTrue(lines.isNotEmpty(), "no parts were written at all")
         for (line in lines) {
+            // The separator matters: a bare `name="` is also satisfied by the file part's
+            // own `filename="…"`, which would let the one part the bug is about go
+            // unquoted without this test noticing.
             assertTrue(
-                line.contains("name=\""),
+                line.contains("; name=\""),
                 "unquoted name, which the server will misread: $line",
             )
         }

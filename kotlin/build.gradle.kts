@@ -10,18 +10,35 @@ repositories {
     mavenCentral()
 }
 
-val ktorVersion = "3.0.3"
+// 3.5.2 is a floor, not just the newest: before it ktor rendered a multipart part's
+// Content-Disposition as `name=file; filename="x.jpg"`, and the WHATWG parser the server
+// uses reads that unquoted name as running on into `filename`, so no `file` part arrives
+// (ktorio/ktor#5157). Downgrading resurrects that. `UploadMultipartTest` is the guard.
+val ktorVersion = "3.5.2"
 
 dependencies {
+    // The bom, not a list of modules, and `api` so it reaches consumers: correct multipart
+    // used to be this library's own doing, and since the hand-quoting came out it is
+    // ktor's. A consumer that resolves any ktor module below the floor — a stale engine in
+    // its own catalogue, most likely — uploads parts the server cannot read, and nothing
+    // here would fail, because the suite only ever sees the version this project resolves.
+    // Every engine has to be covered, not just the two the README offers, since mixing
+    // ktor versions on one classpath is its own failure whichever module is the odd one.
+    api(platform("io.ktor:ktor-bom:$ktorVersion"))
+
+    // Floors, not the versions this is tested at: ktor drags both above what is written
+    // here, and that is what the suite runs against. They say what the library needs, so
+    // that a consumer holding an older one finds out at resolution rather than at runtime.
     api("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.9.0")
     api("org.jetbrains.kotlinx:kotlinx-serialization-json:1.7.3")
-    api("io.ktor:ktor-client-core:$ktorVersion")
-    implementation("io.ktor:ktor-client-content-negotiation:$ktorVersion")
-    implementation("io.ktor:ktor-serialization-kotlinx-json:$ktorVersion")
-    runtimeOnly("io.ktor:ktor-client-cio:$ktorVersion")
+
+    api("io.ktor:ktor-client-core")
+    implementation("io.ktor:ktor-client-content-negotiation")
+    implementation("io.ktor:ktor-serialization-kotlinx-json")
+    runtimeOnly("io.ktor:ktor-client-cio")
 
     testImplementation(kotlin("test"))
-    testImplementation("io.ktor:ktor-client-mock:$ktorVersion")
+    testImplementation("io.ktor:ktor-client-mock")
     testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.9.0")
 }
 
