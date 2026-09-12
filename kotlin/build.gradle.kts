@@ -10,7 +10,11 @@ repositories {
     mavenCentral()
 }
 
-val ktorVersion = "3.0.3"
+// 3.5.2 is a floor, not just the newest: before it ktor rendered a multipart part's
+// Content-Disposition as `name=file; filename="x.jpg"`, and the WHATWG parser the server
+// uses reads that unquoted name as running on into `filename`, so no `file` part arrives
+// (ktorio/ktor#5157). Downgrading resurrects that. `UploadMultipartTest` is the guard.
+val ktorVersion = "3.5.2"
 
 dependencies {
     api("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.9.0")
