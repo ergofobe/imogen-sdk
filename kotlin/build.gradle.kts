@@ -27,6 +27,26 @@ dependencies {
     testImplementation(kotlin("test"))
     testImplementation("io.ktor:ktor-client-mock:$ktorVersion")
     testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.9.0")
+
+    // The floor above is otherwise only a comment. Correct multipart used to be this
+    // library's own doing; since the hand-quoting came out it is ktor's, so a consumer
+    // that resolves ktor lower than 3.5.2 — a stale engine pinned in its own catalogue,
+    // most likely — silently uploads nothing the server can read, and no test here would
+    // notice because the suite only ever sees the version this project resolves.
+    // Declared on the engines too, not just core, because ktor's modules are one set and
+    // it is the engine a consumer picks by hand.
+    constraints {
+        listOf(
+            "io.ktor:ktor-client-core",
+            "io.ktor:ktor-client-cio",
+            "io.ktor:ktor-client-okhttp",
+        ).forEach {
+            api(it) {
+                version { require(ktorVersion) }
+                because("multipart part names are unquoted before ktor 3.5.2 (ktorio/ktor#5157)")
+            }
+        }
+    }
 }
 
 kotlin {
