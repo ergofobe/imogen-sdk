@@ -283,6 +283,8 @@ enum Conformance {
     static func testModelsDecodeAsTheContractSays() throws {
         try check(Asset.self, "asset")
         try check(Asset.self, "assetMinimal")
+        try check(Asset.self, "assetLocationUnset")
+        try check(Asset.self, "assetLocationHalfPair")
         try check(AssetPage.self, "assetPage")
         try check(Album.self, "album")
         try check(AlbumAssetsResult.self, "albumAssetsResult")

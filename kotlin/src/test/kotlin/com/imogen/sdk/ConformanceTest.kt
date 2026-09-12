@@ -292,6 +292,8 @@ class ConformanceTest {
     fun `models decode as the contract says`() {
         check<Asset>("asset")
         check<Asset>("assetMinimal")
+        check<Asset>("assetLocationUnset")
+        check<Asset>("assetLocationHalfPair")
         check<AssetPage>("assetPage")
         check<Album>("album")
         check<AlbumAssetsResult>("albumAssetsResult")

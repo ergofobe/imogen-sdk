@@ -355,6 +355,8 @@ describe('models decode as the contract says', () => {
   const schemas: Record<string, { parse: (input: unknown) => unknown }> = {
     asset: Asset,
     assetMinimal: Asset,
+    assetLocationUnset: Asset,
+    assetLocationHalfPair: Asset,
     album: Album,
     albumAssetsResult: AlbumAssetsResult,
     shareLink: ShareLink,

@@ -101,6 +101,87 @@
       "description": null
     }
   },
+  "assetLocationUnset": {
+    "$comment": "The location a server sends when the file's GPS block held nothing a map could use: the object is there and every field is null. It means no location -- not a location at (null, null) -- so the object decodes away entirely, reverse-geocoded place included. imogen-server stopped emitting this shape, but a client cannot stop reading it: servers are updated long after the apps that talk to them.",
+    "payload": {
+      "id": "00000000-0000-4000-8000-000000000003",
+      "ownerId": "00000000-0000-4000-8000-000000000002",
+      "type": "image",
+      "status": "ready",
+      "originalFilename": "no-fix.jpg",
+      "mimeType": "image/jpeg",
+      "checksum": "1111111111111111111111111111111111111111111111111111111111111111",
+      "sizeBytes": 1024,
+      "width": 640,
+      "height": 480,
+      "duration": null,
+      "capturedAt": "2020-01-01T00:00:00.000Z",
+      "capturedAtIsExact": false,
+      "capturedAtOriginal": null,
+      "capturedAtOriginalIsExact": null,
+      "createdAt": "2020-01-01T00:00:00.000Z",
+      "updatedAt": "2020-01-01T00:00:00.000Z",
+      "deletedAt": null,
+      "favorite": false,
+      "archived": false,
+      "description": null,
+      "exif": null,
+      "location": {
+        "latitude": null,
+        "longitude": null,
+        "altitude": null,
+        "place": null
+      },
+      "placeholderColor": null,
+      "livePhotoVideoId": null,
+      "deviceAssetId": null
+    },
+    "assert": {
+      "id": "00000000-0000-4000-8000-000000000003",
+      "status": "ready",
+      "location": null
+    }
+  },
+  "assetLocationHalfPair": {
+    "$comment": "One coordinate without the other fixes nothing on a map, so the rule is the same: half a pair is no location. A port that checked only latitude would pass the fixture above and still break here.",
+    "payload": {
+      "id": "00000000-0000-4000-8000-000000000004",
+      "ownerId": "00000000-0000-4000-8000-000000000002",
+      "type": "image",
+      "status": "ready",
+      "originalFilename": "half-pair.jpg",
+      "mimeType": "image/jpeg",
+      "checksum": "2222222222222222222222222222222222222222222222222222222222222222",
+      "sizeBytes": 1024,
+      "width": 640,
+      "height": 480,
+      "duration": null,
+      "capturedAt": "2020-01-01T00:00:00.000Z",
+      "capturedAtIsExact": false,
+      "capturedAtOriginal": null,
+      "capturedAtOriginalIsExact": null,
+      "createdAt": "2020-01-01T00:00:00.000Z",
+      "updatedAt": "2020-01-01T00:00:00.000Z",
+      "deletedAt": null,
+      "favorite": false,
+      "archived": false,
+      "description": null,
+      "exif": null,
+      "location": {
+        "latitude": 50.1109,
+        "longitude": null,
+        "altitude": 12.5,
+        "place": "Newlyn, Cornwall"
+      },
+      "placeholderColor": null,
+      "livePhotoVideoId": null,
+      "deviceAssetId": null
+    },
+    "assert": {
+      "id": "00000000-0000-4000-8000-000000000004",
+      "location": null
+    }
+  },
   "assetPage": {
     "payload": {
       "items": [],
