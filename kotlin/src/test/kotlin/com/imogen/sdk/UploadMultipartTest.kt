@@ -64,8 +64,11 @@ class UploadMultipartTest {
 
         assertTrue(lines.isNotEmpty(), "no parts were written at all")
         for (line in lines) {
+            // The separator matters: a bare `name="` is also satisfied by the file part's
+            // own `filename="…"`, which would let the one part the bug is about go
+            // unquoted without this test noticing.
             assertTrue(
-                line.contains("name=\""),
+                line.contains("; name=\""),
                 "unquoted name, which the server will misread: $line",
             )
         }
