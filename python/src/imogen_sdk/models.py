@@ -125,6 +125,11 @@ class ExifData(Contract):
     orientation: int | None = None
 
 
+def _unusable_coordinate(value: Any, bound: float) -> bool:
+    """A coordinate no map can place: absent, or a number outside its own bound."""
+    return value is None or (isinstance(value, (int, float)) and not -bound <= value <= bound)
+
+
 class GeoPoint(Contract):
     latitude: float
     longitude: float
@@ -170,19 +175,20 @@ class Asset(Contract):
 
     @field_validator("location", mode="before")
     @classmethod
-    def _drop_location_without_coordinates(cls, value: Any) -> Any:
+    def _drop_unusable_location(cls, value: Any) -> Any:
         """How a location is read off a response.
 
-        A point on a map needs both coordinates, so an object missing either becomes no
-        location at all -- place name included, since a name with nothing to pin it to is
+        A point on a map needs both coordinates, and each has to fall inside its own
+        range, so an object missing either -- or carrying a latitude of 200 -- becomes no
+        location at all, place name included, since a name with nothing to pin it to is
         not something a client can show. The shape has to be absorbed rather than
-        rejected: a server that read a GPS block and found nothing usable in it answers
-        with the object and nulls inside, and clients outlive the servers they talk to.
-        :class:`GeoPoint` itself stays strict for requests, where half a pair is the
-        caller's own mistake and worth an error.
+        rejected: a server that read a GPS block and made nothing usable of it still
+        answers with the object, and clients outlive the servers they talk to. Only the
+        response path gives: :class:`GeoPoint` stays strict wherever a client sends one.
         """
         if isinstance(value, dict) and (
-            value.get("latitude") is None or value.get("longitude") is None
+            _unusable_coordinate(value.get("latitude"), 90)
+            or _unusable_coordinate(value.get("longitude"), 180)
         ):
             return None
         return value
