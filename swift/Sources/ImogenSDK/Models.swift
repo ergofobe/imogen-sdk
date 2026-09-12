@@ -50,6 +50,61 @@ public struct GeoPoint: Codable, Hashable, Sendable {
     }
 }
 
+/// How a location is read off a response. A point on a map needs both coordinates, so an
+/// object missing either decodes as no location at all -- place name included, since a
+/// name with nothing to pin it to is not something a client can show. The shape has to be
+/// absorbed rather than rejected: a server that read a GPS block and found nothing usable
+/// in it answers with the object and nulls inside, and clients outlive the servers they
+/// talk to. `GeoPoint` itself stays strict for requests, where half a pair is the
+/// caller's own mistake and worth an error.
+@propertyWrapper
+public struct DecodedLocation: Codable, Hashable, Sendable {
+    public var wrappedValue: GeoPoint?
+
+    public init(wrappedValue: GeoPoint?) {
+        self.wrappedValue = wrappedValue
+    }
+
+    public init(from decoder: any Decoder) throws {
+        if let single = try? decoder.singleValueContainer(), single.decodeNil() {
+            self.wrappedValue = nil
+            return
+        }
+        let wire = try Wire(from: decoder)
+        guard let latitude = wire.latitude, let longitude = wire.longitude else {
+            self.wrappedValue = nil
+            return
+        }
+        self.wrappedValue = GeoPoint(
+            latitude: latitude,
+            longitude: longitude,
+            altitude: wire.altitude,
+            place: wire.place
+        )
+    }
+
+    public func encode(to encoder: any Encoder) throws {
+        var container = encoder.singleValueContainer()
+        try container.encode(wrappedValue)
+    }
+
+    private struct Wire: Decodable {
+        var latitude: Double?
+        var longitude: Double?
+        var altitude: Double?
+        var place: String?
+    }
+}
+
+extension KeyedDecodingContainer {
+    /// The synthesised decoder reaches for a wrapped property by `decode` rather than
+    /// `decodeIfPresent`, which would make an absent -- or null -- `location` an error
+    /// where a bare `GeoPoint?` tolerated both. This puts that back.
+    func decode(_ type: DecodedLocation.Type, forKey key: Key) throws -> DecodedLocation {
+        try decodeIfPresent(type, forKey: key) ?? DecodedLocation(wrappedValue: nil)
+    }
+}
+
 public struct Asset: Codable, Hashable, Sendable, Identifiable {
     public var id: String
     public var ownerId: String
@@ -77,7 +132,7 @@ public struct Asset: Codable, Hashable, Sendable, Identifiable {
     public var archived: Bool
     public var description: String?
     public var exif: ExifData?
-    public var location: GeoPoint?
+    @DecodedLocation public var location: GeoPoint?
     /// Dominant colour of the thumbnail, for grid placeholders.
     public var placeholderColor: String?
     /// The paired video of an iPhone Live Photo, if this asset has one.
