@@ -287,6 +287,8 @@ async def test_every_operation_in_the_contract_reaches_the_right_endpoint(
 MODEL_TYPES = {
     "asset": Asset,
     "assetMinimal": Asset,
+    "assetLocationUnset": Asset,
+    "assetLocationHalfPair": Asset,
     "assetPage": AssetPage,
     "album": Album,
     "albumAssetsResult": AlbumAssetsResult,

@@ -31,6 +31,21 @@ export const GeoPoint = z.object({
 })
 export type GeoPoint = z.infer<typeof GeoPoint>
 
+/**
+ * How a location is read off a response. A point on a map needs both coordinates, so an
+ * object missing either decodes as no location at all — place name included, since a
+ * name with nothing to pin it to is not something a client can show. The shape has to be
+ * absorbed rather than rejected: a server that read a GPS block and found nothing usable
+ * in it answers with the object and nulls inside, and clients outlive the servers they
+ * talk to. `GeoPoint` itself stays strict for requests, where half a pair is the
+ * caller's own mistake and worth an error.
+ */
+const DecodedGeoPoint = z.preprocess((value) => {
+  if (value === null || typeof value !== 'object') return value
+  const point = value as Record<string, unknown>
+  return point.latitude == null || point.longitude == null ? null : value
+}, GeoPoint.nullable())
+
 export const Asset = z.object({
   id: z.uuid(),
   ownerId: z.uuid(),
@@ -63,7 +78,7 @@ export const Asset = z.object({
   archived: z.boolean(),
   description: z.string().nullable(),
   exif: ExifData.nullable(),
-  location: GeoPoint.nullable(),
+  location: DecodedGeoPoint,
   /** Dominant colour of the thumbnail, for grid placeholders. */
   placeholderColor: z.string().nullable(),
   /** The paired video of an iPhone Live Photo, if this asset has one. */

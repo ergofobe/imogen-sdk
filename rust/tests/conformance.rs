@@ -434,6 +434,8 @@ where
 fn models_decode_as_the_contract_says() {
     check_model::<Asset>("asset");
     check_model::<Asset>("assetMinimal");
+    check_model::<Asset>("assetLocationUnset");
+    check_model::<Asset>("assetLocationHalfPair");
     check_model::<AssetPage>("assetPage");
     check_model::<Album>("album");
     check_model::<AlbumAssetsResult>("albumAssetsResult");

@@ -4,7 +4,7 @@
 //! ISO-8601 and nothing else, and a client that reformats on the way through is a client
 //! that eventually sends back something the server did not give it.
 
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Deserializer, Serialize};
 use std::collections::BTreeMap;
 
 // --- assets ---
@@ -69,6 +69,42 @@ pub struct GeoPoint {
     pub place: Option<String>,
 }
 
+/// How a location is read off a response. A point on a map needs both coordinates, so an
+/// object missing either deserialises as no location at all -- place name included, since
+/// a name with nothing to pin it to is not something a client can show. The shape has to
+/// be absorbed rather than rejected: a server that read a GPS block and found nothing
+/// usable in it answers with the object and nulls inside, and clients outlive the servers
+/// they talk to. `GeoPoint` itself stays strict for requests, where half a pair is the
+/// caller's own mistake and worth an error.
+fn deserialize_location<'de, D>(deserializer: D) -> Result<Option<GeoPoint>, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    #[derive(Deserialize)]
+    #[serde(rename_all = "camelCase")]
+    struct Wire {
+        #[serde(default)]
+        latitude: Option<f64>,
+        #[serde(default)]
+        longitude: Option<f64>,
+        #[serde(default)]
+        altitude: Option<f64>,
+        #[serde(default)]
+        place: Option<String>,
+    }
+
+    let wire = Option::<Wire>::deserialize(deserializer)?;
+    Ok(wire.and_then(|wire| match (wire.latitude, wire.longitude) {
+        (Some(latitude), Some(longitude)) => Some(GeoPoint {
+            latitude,
+            longitude,
+            altitude: wire.altitude,
+            place: wire.place,
+        }),
+        _ => None,
+    }))
+}
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Asset {
@@ -98,6 +134,7 @@ pub struct Asset {
     pub archived: bool,
     pub description: Option<String>,
     pub exif: Option<ExifData>,
+    #[serde(default, deserialize_with = "deserialize_location")]
     pub location: Option<GeoPoint>,
     /// Dominant colour of the thumbnail, for grid placeholders.
     pub placeholder_color: Option<String>,

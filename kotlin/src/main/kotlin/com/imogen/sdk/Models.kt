@@ -5,8 +5,13 @@ package com.imogen.sdk
 import io.ktor.http.Url
 import kotlinx.serialization.EncodeDefault
 import kotlinx.serialization.ExperimentalSerializationApi
+import kotlinx.serialization.KSerializer
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.builtins.nullable
+import kotlinx.serialization.descriptors.SerialDescriptor
+import kotlinx.serialization.encoding.Decoder
+import kotlinx.serialization.encoding.Encoder
 import kotlinx.serialization.json.Json
 
 /**
@@ -77,6 +82,43 @@ data class GeoPoint(
     val place: String? = null,
 )
 
+/**
+ * How a location is read off a response. A point on a map needs both coordinates, so an
+ * object missing either decodes as no location at all -- place name included, since a name
+ * with nothing to pin it to is not something a client can show. The shape has to be
+ * absorbed rather than rejected: a server that read a GPS block and found nothing usable in
+ * it answers with the object and nulls inside, and clients outlive the servers they talk
+ * to. [GeoPoint] itself stays strict for requests, where half a pair is the caller's own
+ * mistake and worth an error.
+ */
+internal object DecodedLocationSerializer : KSerializer<GeoPoint?> {
+    @Serializable
+    private data class Wire(
+        val latitude: Double? = null,
+        val longitude: Double? = null,
+        val altitude: Double? = null,
+        val place: String? = null,
+    )
+
+    private val delegate = Wire.serializer().nullable
+
+    override val descriptor: SerialDescriptor = delegate.descriptor
+
+    override fun deserialize(decoder: Decoder): GeoPoint? {
+        val wire = delegate.deserialize(decoder) ?: return null
+        val latitude = wire.latitude ?: return null
+        val longitude = wire.longitude ?: return null
+        return GeoPoint(latitude, longitude, wire.altitude, wire.place)
+    }
+
+    override fun serialize(encoder: Encoder, value: GeoPoint?) {
+        delegate.serialize(
+            encoder,
+            value?.let { Wire(it.latitude, it.longitude, it.altitude, it.place) },
+        )
+    }
+}
+
 @Serializable
 data class Asset(
     val id: String,
@@ -105,7 +147,7 @@ data class Asset(
     val archived: Boolean,
     val description: String? = null,
     val exif: ExifData? = null,
-    val location: GeoPoint? = null,
+    @Serializable(with = DecodedLocationSerializer::class) val location: GeoPoint? = null,
     /** Dominant colour of the thumbnail, for grid placeholders. */
     val placeholderColor: String? = null,
     /** The paired video of an iPhone Live Photo, if this asset has one. */
