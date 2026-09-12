@@ -5,7 +5,7 @@ API. JVM, Java 21 or later.
 
 ```kotlin
 dependencies {
-    implementation("com.imogen:imogen-sdk:0.4.1")
+    implementation("com.imogen:imogen-sdk:0.5.0")
     // Pick a ktor engine. CIO has no further dependencies; OkHttp is the usual choice
     // on Android. No version: the SDK constrains the ktor modules it needs kept in step,
     // so naming one here would only be a second place for it to go stale.
