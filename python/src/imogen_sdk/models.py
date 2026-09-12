@@ -126,8 +126,21 @@ class ExifData(Contract):
 
 
 def _unusable_coordinate(value: Any, bound: float) -> bool:
-    """A coordinate no map can place: absent, or a number outside its own bound."""
-    return value is None or (isinstance(value, (int, float)) and not -bound <= value <= bound)
+    """A coordinate no map can place: absent, or a number outside its own bound.
+
+    The bound is applied to the value pydantic will end up with, not to the raw one:
+    lax mode coerces ``"200"`` to ``200.0``, so testing :func:`isinstance` here would
+    let a numeric string walk straight past the range the other four ports enforce.
+    Anything that is not a number at all is left alone for :class:`GeoPoint` to reject,
+    which is what every port does with it today.
+    """
+    if value is None:
+        return True
+    try:
+        number = float(value)
+    except (TypeError, ValueError):
+        return False
+    return not -bound <= number <= bound
 
 
 class GeoPoint(Contract):
