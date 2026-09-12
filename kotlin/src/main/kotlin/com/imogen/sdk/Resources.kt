@@ -172,7 +172,7 @@ class Assets internal constructor(private val http: HttpClient) {
                         append(HttpHeaders.ContentType, mimeTypeFor(file))
                         append(
                             HttpHeaders.ContentDisposition,
-                            "filename=\"${options.metadata.filename ?: file.name}\"",
+                            "filename=\"${formDataFilename(options.metadata.filename ?: file.name)}\"",
                         )
                     },
                 )
@@ -727,6 +727,29 @@ class Admin internal constructor(private val http: HttpClient) {
         http.requestText("DELETE", "/api/v1/admin/shares/$shareId")
     }
 }
+
+/**
+ * A filename as multipart/form-data spells it.
+ *
+ * ktor's own `quote()` is the wrong tool here, and so is leaving the name raw. The format
+ * honours no backslash escapes: measured, undici rejects the entire body on meeting one —
+ * a 400 for the whole upload, not a mangled name — and Bun keeps the backslashes in the
+ * name it stores. These three percent-escapes are what the WHATWG algorithm prescribes
+ * instead. On Android the name is a MediaStore DISPLAY_NAME, so it is user data and every
+ * one of the three can turn up in it.
+ *
+ * Escaping is all this buys: undici decodes the escapes back, but Bun — which the server
+ * runs — does not, so a hostile name is stored escaped rather than restored. The exact
+ * name reaches the server whenever the caller sets [AssetUploadMetadata.filename], which
+ * travels in a part body where nothing has to be escaped; when the caller sets none, this
+ * header is the only carrier and the escapes survive into storage.
+ *
+ * `%` itself is deliberately not escaped, because the WHATWG algorithm does not escape it
+ * either. The mapping is therefore not injective: a real `100%22off.jpg` is sent unchanged
+ * and a decoding parser reads it back as `100"off.jpg`.
+ */
+internal fun formDataFilename(name: String): String =
+    name.replace("\r", "%0D").replace("\n", "%0A").replace("\"", "%22")
 
 /**
  * Enough of a guess for the server to accept the part. The server re-sniffs the bytes
