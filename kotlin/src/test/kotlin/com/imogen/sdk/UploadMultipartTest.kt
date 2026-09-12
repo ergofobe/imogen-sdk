@@ -23,12 +23,34 @@ import kotlin.test.assertTrue
  */
 class UploadMultipartTest {
 
-    private fun dispositions(body: ByteArray): List<String> =
-        String(body, Charsets.ISO_8859_1)
-            .split("\r\n")
-            .filter { it.startsWith("Content-Disposition:") }
+    private val metadata = AssetUploadMetadata(
+        deviceAssetId = "android:external_primary:125",
+        capturedAt = "2025-07-27T15:04:03.413Z",
+        favorite = true,
+        filename = "PXL_1.jpg",
+        // Quotes and a comma, in a value that travels in a part body rather than a header:
+        // the escaping a header needs must not leak into one.
+        description = "Sunrise, and \"the good one\"",
+        location = GeoPoint(47.6205, -122.3493, 158.0, "Space Needle, Seattle"),
+    )
 
-    private fun uploadAndCapture(): ByteArray = run {
+    /**
+     * The parts' headers, read the way a parser reads them: each part up to its blank
+     * line, and no further. Grepping the whole body instead would let a part *body* that
+     * happens to contain a CRLF and a header-shaped line — which is exactly what a
+     * hostile filename puts there — pass for a header.
+     */
+    private fun dispositions(body: ByteArray): List<String> {
+        val text = String(body, Charsets.ISO_8859_1)
+        val boundary = text.substringBefore("\r\n")
+        return text.split("$boundary\r\n")
+            .drop(1)
+            .map { it.substringBefore("\r\n\r\n") }
+            .flatMap { it.split("\r\n") }
+            .filter { it.startsWith("Content-Disposition:") }
+    }
+
+    private fun uploadAndCapture(metadata: AssetUploadMetadata = this.metadata): ByteArray = run {
         val file = File.createTempFile("imogen", ".jpg").apply {
             writeBytes(byteArrayOf(1, 2, 3))
             deleteOnExit()
@@ -42,16 +64,7 @@ class UploadMultipartTest {
                 ImogenClient(
                     ClientOptions(baseUrl = "https://photos.example.test", engine = stub.engine)
                 ).use { imogen ->
-                    imogen.assets.upload(
-                        file,
-                        UploadOptions(
-                            metadata = AssetUploadMetadata(
-                                deviceAssetId = "android:external_primary:125",
-                                capturedAt = "2025-07-27T15:04:03.413Z",
-                                filename = "PXL_1.jpg",
-                            ),
-                        ),
-                    )
+                    imogen.assets.upload(file, UploadOptions(metadata = metadata))
                 }
             }
         }
@@ -90,10 +103,70 @@ class UploadMultipartTest {
     }
 
     @Test
-    fun `the metadata travels as its own parts`() = runTest {
+    fun `every metadata field travels as its own part, and nothing else does`() = runTest {
         val lines = dispositions(uploadAndCapture())
 
-        assertTrue(lines.any { it.contains("name=\"deviceAssetId\"") }, "$lines")
-        assertTrue(lines.any { it.contains("name=\"capturedAt\"") }, "$lines")
+        for (name in METADATA_PART_NAMES) {
+            assertTrue(lines.any { it.contains("; name=\"$name\"") }, "no $name part: $lines")
+        }
+        // Counted, not just spot-checked: a part that quietly stops being written is the
+        // failure mode a set of `any` assertions cannot see.
+        assertEquals(
+            METADATA_PART_NAMES.size + 1,
+            lines.size,
+            "one part per metadata field, plus the file: $lines",
+        )
+    }
+
+    @Test
+    fun `the location rides as JSON in its own part`() = runTest {
+        val body = String(uploadAndCapture(), Charsets.ISO_8859_1)
+
+        // The value most likely to expose an encoding bug: quotes and commas, in the one
+        // metadata field that is a document rather than a scalar.
+        assertTrue(
+            body.contains(
+                """{"latitude":47.6205,"longitude":-122.3493,"altitude":158.0,""" +
+                    """"place":"Space Needle, Seattle"}""",
+            ),
+            "the location part did not carry its JSON intact: $body",
+        )
+        assertTrue(
+            body.contains("Sunrise, and \"the good one\""),
+            "the description part did not carry its quotes intact: $body",
+        )
+    }
+
+    @Test
+    fun `a quote or a newline in the filename is escaped, not left in the header`() = runTest {
+        // Android reads this straight off MediaStore's DISPLAY_NAME, so it is user data.
+        // Raw, the quote ends the parameter early and the CRLF starts a header of the
+        // caller's choosing; undici answers both by rejecting the whole body.
+        val hostile = "he said \"hi\"\r\nContent-Disposition: form-data; name=\"evil\", ok.jpg"
+        val lines = dispositions(uploadAndCapture(metadata.copy(filename = hostile)))
+
+        assertEquals(
+            "Content-Disposition: form-data; name=\"file\"; filename=\"he said %22hi%22%0D%0A" +
+                "Content-Disposition: form-data; name=%22evil%22, ok.jpg\"",
+            lines.single { it.contains("; name=\"file\"") },
+            "the filename must be escaped into the header, not laid into it: $lines",
+        )
+        // The escaping is the only thing standing between a DISPLAY_NAME and an extra part.
+        assertEquals(
+            METADATA_PART_NAMES.size + 1,
+            lines.size,
+            "the filename smuggled a part past the encoding: $lines",
+        )
+    }
+
+    private companion object {
+        val METADATA_PART_NAMES = listOf(
+            "deviceAssetId",
+            "capturedAt",
+            "favorite",
+            "description",
+            "filename",
+            "location",
+        )
     }
 }
