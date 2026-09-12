@@ -21,6 +21,10 @@ build/
 # Swift
 .build/
 *.xcodeproj
+# Opening a consumer's Xcode project builds swift/ as a local package, and Xcode then
+# writes per-user scheme state in here — inside whichever checkout holds the submodule.
+.swiftpm/
+xcuserdata/
 
 # Kotlin / Gradle
 .gradle/
