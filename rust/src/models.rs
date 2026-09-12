@@ -69,13 +69,13 @@ pub struct GeoPoint {
     pub place: Option<String>,
 }
 
-/// How a location is read off a response. A point on a map needs both coordinates, so an
-/// object missing either deserialises as no location at all -- place name included, since
-/// a name with nothing to pin it to is not something a client can show. The shape has to
-/// be absorbed rather than rejected: a server that read a GPS block and found nothing
-/// usable in it answers with the object and nulls inside, and clients outlive the servers
-/// they talk to. `GeoPoint` itself stays strict for requests, where half a pair is the
-/// caller's own mistake and worth an error.
+/// How a location is read off a response. A point on a map needs both coordinates, and
+/// each has to fall inside its own range, so an object missing either -- or carrying a
+/// latitude of 200 -- deserialises as no location at all, place name included, since a
+/// name with nothing to pin it to is not something a client can show. The shape has to be
+/// absorbed rather than rejected: a server that read a GPS block and made nothing usable
+/// of it still answers with the object, and clients outlive the servers they talk to.
+/// Only the response path gives: `GeoPoint` stays strict wherever a client sends one.
 fn deserialize_location<'de, D>(deserializer: D) -> Result<Option<GeoPoint>, D::Error>
 where
     D: Deserializer<'de>,
@@ -95,12 +95,16 @@ where
 
     let wire = Option::<Wire>::deserialize(deserializer)?;
     Ok(wire.and_then(|wire| match (wire.latitude, wire.longitude) {
-        (Some(latitude), Some(longitude)) => Some(GeoPoint {
-            latitude,
-            longitude,
-            altitude: wire.altitude,
-            place: wire.place,
-        }),
+        (Some(latitude), Some(longitude))
+            if (-90.0..=90.0).contains(&latitude) && (-180.0..=180.0).contains(&longitude) =>
+        {
+            Some(GeoPoint {
+                latitude,
+                longitude,
+                altitude: wire.altitude,
+                place: wire.place,
+            })
+        }
         _ => None,
     }))
 }

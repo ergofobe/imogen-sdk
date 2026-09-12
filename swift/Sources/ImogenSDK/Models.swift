@@ -50,13 +50,13 @@ public struct GeoPoint: Codable, Hashable, Sendable {
     }
 }
 
-/// How a location is read off a response. A point on a map needs both coordinates, so an
-/// object missing either decodes as no location at all -- place name included, since a
-/// name with nothing to pin it to is not something a client can show. The shape has to be
-/// absorbed rather than rejected: a server that read a GPS block and found nothing usable
-/// in it answers with the object and nulls inside, and clients outlive the servers they
-/// talk to. `GeoPoint` itself stays strict for requests, where half a pair is the
-/// caller's own mistake and worth an error.
+/// How a location is read off a response. A point on a map needs both coordinates, and
+/// each has to fall inside its own range, so an object missing either -- or carrying a
+/// latitude of 200 -- decodes as no location at all, place name included, since a name
+/// with nothing to pin it to is not something a client can show. The shape has to be
+/// absorbed rather than rejected: a server that read a GPS block and made nothing usable
+/// of it still answers with the object, and clients outlive the servers they talk to.
+/// Only the response path gives: `GeoPoint` stays strict wherever a client sends one.
 @propertyWrapper
 public struct DecodedLocation: Codable, Hashable, Sendable {
     public var wrappedValue: GeoPoint?
@@ -71,7 +71,9 @@ public struct DecodedLocation: Codable, Hashable, Sendable {
             return
         }
         let wire = try Wire(from: decoder)
-        guard let latitude = wire.latitude, let longitude = wire.longitude else {
+        guard let latitude = wire.latitude, (-90...90).contains(latitude),
+            let longitude = wire.longitude, (-180...180).contains(longitude)
+        else {
             self.wrappedValue = nil
             return
         }

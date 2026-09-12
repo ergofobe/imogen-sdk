@@ -182,6 +182,128 @@
       "location": null
     }
   },
+  "assetLocationLatitudeOutOfRange": {
+    "$comment": "A latitude outside [-90, 90] is not a point on a map any more than a missing one is, so it means the same thing: no location, place name included. Only the TypeScript port used to range-check, so this shape decoded happily in four ports and failed the whole asset in the fifth.",
+    "payload": {
+      "id": "00000000-0000-4000-8000-000000000005",
+      "ownerId": "00000000-0000-4000-8000-000000000002",
+      "type": "image",
+      "status": "ready",
+      "originalFilename": "bad-latitude.jpg",
+      "mimeType": "image/jpeg",
+      "checksum": "3333333333333333333333333333333333333333333333333333333333333333",
+      "sizeBytes": 1024,
+      "width": 640,
+      "height": 480,
+      "duration": null,
+      "capturedAt": "2020-01-01T00:00:00.000Z",
+      "capturedAtIsExact": false,
+      "capturedAtOriginal": null,
+      "capturedAtOriginalIsExact": null,
+      "createdAt": "2020-01-01T00:00:00.000Z",
+      "updatedAt": "2020-01-01T00:00:00.000Z",
+      "deletedAt": null,
+      "favorite": false,
+      "archived": false,
+      "description": null,
+      "exif": null,
+      "location": {
+        "latitude": 200.0,
+        "longitude": -5.5372,
+        "altitude": 12.5,
+        "place": "Newlyn, Cornwall"
+      },
+      "placeholderColor": null,
+      "livePhotoVideoId": null,
+      "deviceAssetId": null
+    },
+    "assert": {
+      "id": "00000000-0000-4000-8000-000000000005",
+      "location": null
+    }
+  },
+  "assetLocationLongitudeOutOfRange": {
+    "$comment": "The bounds differ per coordinate -- [-90, 90] and [-180, 180] -- so a port that checked only latitude, or checked both against the same bound, would pass the fixture above and still let this one through. -200.5 is a legal latitude away from being legal here.",
+    "payload": {
+      "id": "00000000-0000-4000-8000-000000000006",
+      "ownerId": "00000000-0000-4000-8000-000000000002",
+      "type": "image",
+      "status": "ready",
+      "originalFilename": "bad-longitude.jpg",
+      "mimeType": "image/jpeg",
+      "checksum": "4444444444444444444444444444444444444444444444444444444444444444",
+      "sizeBytes": 1024,
+      "width": 640,
+      "height": 480,
+      "duration": null,
+      "capturedAt": "2020-01-01T00:00:00.000Z",
+      "capturedAtIsExact": false,
+      "capturedAtOriginal": null,
+      "capturedAtOriginalIsExact": null,
+      "createdAt": "2020-01-01T00:00:00.000Z",
+      "updatedAt": "2020-01-01T00:00:00.000Z",
+      "deletedAt": null,
+      "favorite": false,
+      "archived": false,
+      "description": null,
+      "exif": null,
+      "location": {
+        "latitude": 50.1109,
+        "longitude": -200.5,
+        "altitude": null,
+        "place": null
+      },
+      "placeholderColor": null,
+      "livePhotoVideoId": null,
+      "deviceAssetId": null
+    },
+    "assert": {
+      "id": "00000000-0000-4000-8000-000000000006",
+      "location": null
+    }
+  },
+  "assetLocationAtTheBounds": {
+    "$comment": "The bounds themselves are inside the range: a photograph at the South Pole on the antimeridian keeps its location. Without this, a port could pass every fixture above by dropping any location it was unsure of.",
+    "payload": {
+      "id": "00000000-0000-4000-8000-000000000007",
+      "ownerId": "00000000-0000-4000-8000-000000000002",
+      "type": "image",
+      "status": "ready",
+      "originalFilename": "south-pole.jpg",
+      "mimeType": "image/jpeg",
+      "checksum": "5555555555555555555555555555555555555555555555555555555555555555",
+      "sizeBytes": 1024,
+      "width": 640,
+      "height": 480,
+      "duration": null,
+      "capturedAt": "2020-01-01T00:00:00.000Z",
+      "capturedAtIsExact": false,
+      "capturedAtOriginal": null,
+      "capturedAtOriginalIsExact": null,
+      "createdAt": "2020-01-01T00:00:00.000Z",
+      "updatedAt": "2020-01-01T00:00:00.000Z",
+      "deletedAt": null,
+      "favorite": false,
+      "archived": false,
+      "description": null,
+      "exif": null,
+      "location": {
+        "latitude": -90.0,
+        "longitude": 180.0,
+        "altitude": 2835.0,
+        "place": "Amundsen-Scott Station"
+      },
+      "placeholderColor": null,
+      "livePhotoVideoId": null,
+      "deviceAssetId": null
+    },
+    "assert": {
+      "id": "00000000-0000-4000-8000-000000000007",
+      "location.latitude": -90.0,
+      "location.longitude": 180.0,
+      "location.place": "Amundsen-Scott Station"
+    }
+  },
   "assetPage": {
     "payload": {
       "items": [],
