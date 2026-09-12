@@ -42,7 +42,9 @@ const unusableCoordinate = (value: unknown, bound: number) =>
  * with nothing to pin it to is not something a client can show. The shape has to be
  * absorbed rather than rejected: a server that read a GPS block and made nothing usable
  * of it still answers with the object, and clients outlive the servers they talk to.
- * Only the response path gives: `GeoPoint` stays strict wherever a client sends one.
+ * This is the response path only. On the way out, `GeoPoint` is range-checked here and in
+ * no other port, so a client on Rust, Python, Kotlin or Swift can still send a latitude of
+ * 200 and have it come back as no location at all. See ergofobe/imogen-sdk#40.
  */
 const DecodedGeoPoint = z.preprocess((value) => {
   if (value === null || typeof value !== 'object') return value

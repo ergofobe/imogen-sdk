@@ -75,7 +75,9 @@ pub struct GeoPoint {
 /// name with nothing to pin it to is not something a client can show. The shape has to be
 /// absorbed rather than rejected: a server that read a GPS block and made nothing usable
 /// of it still answers with the object, and clients outlive the servers they talk to.
-/// Only the response path gives: `GeoPoint` stays strict wherever a client sends one.
+/// This is the response path only. On the way out, `GeoPoint` is range-checked in the
+/// TypeScript port and nowhere else, so a client here can still send a latitude of 200 and
+/// have it come back as no location at all. See ergofobe/imogen-sdk#40.
 fn deserialize_location<'de, D>(deserializer: D) -> Result<Option<GeoPoint>, D::Error>
 where
     D: Deserializer<'de>,

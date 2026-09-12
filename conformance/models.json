@@ -301,6 +301,7 @@
       "id": "00000000-0000-4000-8000-000000000007",
       "location.latitude": -90.0,
       "location.longitude": 180.0,
+      "location.altitude": 2835.0,
       "location.place": "Amundsen-Scott Station"
     }
   },

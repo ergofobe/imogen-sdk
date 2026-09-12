@@ -88,8 +88,9 @@ data class GeoPoint(
  * of 200 -- decodes as no location at all, place name included, since a name with nothing
  * to pin it to is not something a client can show. The shape has to be absorbed rather than
  * rejected: a server that read a GPS block and made nothing usable of it still answers with
- * the object, and clients outlive the servers they talk to. Only the response path gives:
- * [GeoPoint] stays strict wherever a client sends one.
+ * the object, and clients outlive the servers they talk to. This is the response path only:
+ * on the way out, [GeoPoint] is range-checked in the TypeScript port and nowhere else, so a
+ * client here can still send a latitude of 200. See ergofobe/imogen-sdk#40.
  */
 internal object DecodedLocationSerializer : KSerializer<GeoPoint?> {
     @Serializable
