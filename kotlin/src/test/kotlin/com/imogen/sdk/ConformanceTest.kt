@@ -667,8 +667,9 @@ class ConformanceTest {
     @Test
     fun `a boolean is spelled the way the contract spells it`() = runTest {
         val contract = fixture("endpoints.json")["booleanOnTheWire"] as JsonObject
-        val queryParam = contract["queryParam"]!!.jsonPrimitive.content
         val field = contract["multipartField"]!!.jsonPrimitive.content
+        fun names(key: String) =
+            (contract[key] as JsonArray).map { it.jsonPrimitive.content }
 
         val small = File.createTempFile("imogen-conformance-boolean", ".jpg").apply {
             writeBytes("not really a jpeg".toByteArray())
@@ -681,12 +682,22 @@ class ConformanceTest {
 
             val stub = Stub(defaultReply)
             client(stub, maxRetries = 0).use { imogen ->
-                imogen.assets.list(AssetQuery(favorite = value))
-                assertEquals(
-                    wire,
-                    parseQueryString(stub.calls.first().query)[queryParam],
-                    "the $queryParam query parameter for $value",
+                // Both query builders, because each query shape has its own hand-written
+                // one: a field the contract names but this does not set fails as a missing
+                // parameter, which is the port being told to catch up.
+                imogen.assets.list(
+                    AssetQuery(favorite = value, archived = value, trashed = value)
                 )
+                // The stub answers every path with a listing, so the timeline decode fails;
+                // the request is recorded before the answer, which is all this needs.
+                runCatching { imogen.assets.timeline(TimelineQuery(covers = value)) }
+
+                listOf("assetQueryFields", "timelineQueryFields").forEachIndexed { index, key ->
+                    val sent = parseQueryString(stub.calls[index].query)
+                    for (name in names(key)) {
+                        assertEquals(wire, sent[name], "the $name query parameter for $value")
+                    }
+                }
 
                 val before = stub.callCount
                 // What comes back does not matter: the stub records the request before it

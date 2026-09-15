@@ -57,6 +57,7 @@ from imogen_sdk import (
     Timeline,
     TimelineBucket,
     TimelineBucketQuery,
+    TimelineQuery,
     TimelineTile,
     TokenResponse,
     UploadSession,
@@ -720,7 +721,6 @@ async def test_a_boolean_is_spelled_the_way_the_contract_spells_it(
     an inbound request; this one writes a query string and never reads one.
     """
     contract = endpoints["booleanOnTheWire"]
-    query_param = contract["queryParam"]
     field = contract["multipartField"]
 
     for case in contract["encode"]:
@@ -728,10 +728,20 @@ async def test_a_boolean_is_spelled_the_way_the_contract_spells_it(
         stub = serve(default_reply)
 
         async with ImogenClient(stub.base_url, max_retries=0) as client:
-            await client.assets.list(AssetQuery(favorite=value))
+            # Both query builders, because each query shape has its own hand-written one: a
+            # field the contract names but this does not set fails as a missing parameter,
+            # which is the port being told to catch up.
+            await client.assets.list(AssetQuery(favorite=value, archived=value, trashed=value))
+            try:
+                await client.assets.timeline(TimelineQuery(covers=value))
+            except Exception:  # noqa: BLE001 — the stub answers a listing, not a timeline.
+                pass
+
             # A query string and a form body share an encoding, so one reader does for both.
-            listed = parse_qs(stub.calls[0].query, keep_blank_values=True)
-            assert listed.get(query_param, [None])[0] == wire, f"{query_param} for {value}"
+            for index, key in enumerate(["assetQueryFields", "timelineQueryFields"]):
+                sent = parse_qs(stub.calls[index].query, keep_blank_values=True)
+                for name in contract[key]:
+                    assert sent.get(name, [None])[0] == wire, f"{name} for {value}"
 
             before = stub.call_count
             # What comes back does not matter: the stub records the request before it

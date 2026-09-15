@@ -363,15 +363,25 @@ describe('the resource indicator on a pairing claim', () => {
 
 describe('a boolean on the wire', () => {
   const contract = endpoints.booleanOnTheWire
-  const { queryParam, multipartField } = contract
+  const { multipartField } = contract
 
   for (const item of contract.encode) {
     test(`a query parameter set to ${item.value} is spelled "${item.wire}"`, async () => {
       const { calls, fetch } = recorder()
       const client = new ImogenClient({ baseUrl: BASE, fetch, maxRetries: 0 })
 
-      await client.assets.list({ [queryParam]: item.value })
-      expect(calls[0]?.query.get(queryParam)).toBe(item.wire)
+      // Both query builders, because each query shape has its own: a field the contract
+      // names but this does not set fails as a missing parameter, which is the port being
+      // told to catch up.
+      await client.assets.list({ favorite: item.value, archived: item.value, trashed: item.value })
+      await client.assets.timeline({ covers: item.value })
+
+      const sent = [contract.assetQueryFields, contract.timelineQueryFields]
+      for (const [index, fields] of sent.entries()) {
+        for (const name of fields) {
+          expect({ [name]: calls[index]?.query.get(name) }).toEqual({ [name]: item.wire })
+        }
+      }
     })
 
     test(`a multipart field set to ${item.value} is spelled "${item.wire}"`, async () => {

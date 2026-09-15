@@ -731,7 +731,6 @@ enum Conformance {
     /// inbound request; this one writes a query string and never reads one.
     static func testABooleanIsSpelledTheWayTheContractSpellsIt() async throws {
         let contract = try fixture("endpoints.json")["booleanOnTheWire"] as! [String: Any]
-        let queryParam = contract["queryParam"] as! String
         let field = contract["multipartField"] as! String
 
         let small = FileManager.default.temporaryDirectory
@@ -747,13 +746,26 @@ enum Conformance {
                 options: ClientOptions(baseURL: Conformance.base, maxRetries: 0, session: session)
             )
 
-            _ = try await client.assets.list(AssetQuery(favorite: value))
-            let listed = URLComponents(string: "?" + (StubState.shared.calls[0].query))
-            expectEqual(
-                listed?.queryItems?.first { $0.name == queryParam }?.value,
-                wire,
-                "the \(queryParam) query parameter for \(value)"
+            // Both query builders, because each query shape has its own hand-written one:
+            // a field the contract names but this does not set fails as a missing
+            // parameter, which is the port being told to catch up.
+            _ = try await client.assets.list(
+                AssetQuery(favorite: value, archived: value, trashed: value)
             )
+            // The stub answers every path with a listing, so the timeline decode fails; the
+            // request is recorded before the answer, which is all this needs.
+            _ = try? await client.assets.timeline(TimelineQuery(covers: value))
+
+            for (index, key) in ["assetQueryFields", "timelineQueryFields"].enumerated() {
+                let sent = URLComponents(string: "?" + StubState.shared.calls[index].query)
+                for name in contract[key] as! [String] {
+                    expectEqual(
+                        sent?.queryItems?.first { $0.name == name }?.value,
+                        wire,
+                        "the \(name) query parameter for \(value)"
+                    )
+                }
+            }
 
             let before = StubState.shared.callCount
             // What comes back does not matter: the stub records the request before it

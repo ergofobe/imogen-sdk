@@ -968,8 +968,15 @@ fn multipart_field(body: &[u8], name: &str) -> Option<String> {
 async fn a_boolean_is_spelled_the_way_the_contract_spells_it() {
     let endpoints = fixture(ENDPOINTS);
     let contract = &endpoints["booleanOnTheWire"];
-    let query_param = contract["queryParam"].as_str().unwrap();
     let field = contract["multipartField"].as_str().unwrap();
+    let names = |key: &str| -> Vec<String> {
+        contract[key]
+            .as_array()
+            .expect("the fixture names the query fields")
+            .iter()
+            .map(|name| name.as_str().unwrap().to_string())
+            .collect()
+    };
 
     let small = std::env::temp_dir().join("imogen-conformance-boolean.jpg");
     std::fs::write(&small, b"not really a jpeg").unwrap();
@@ -986,19 +993,36 @@ async fn a_boolean_is_spelled_the_way_the_contract_spells_it() {
             stub::start(|_, _| Reply::json(r#"{"items":[],"nextCursor":null,"total":0}"#)).await;
         let client = ImogenClient::new(ClientOptions::new(&server.base_url).max_retries(0));
 
-        let query = AssetQuery {
+        // Both query builders, because each query shape has its own hand-written one: a
+        // field the contract names but this does not set fails as a missing parameter,
+        // which is the port being told to catch up.
+        let listing = AssetQuery {
             favorite: Some(value),
+            archived: Some(value),
+            trashed: Some(value),
             ..Default::default()
         };
-        drop(client.assets.list(&query).await);
+        drop(client.assets.list(&listing).await);
+        let timeline = TimelineQuery {
+            covers: Some(value),
+            ..Default::default()
+        };
+        drop(client.assets.timeline(&timeline).await);
 
         // A query string and a form body share an encoding, so one reader does for both.
-        let listed = &server.calls()[0];
-        assert_eq!(
-            form_param(listed.query.as_bytes(), query_param).as_deref(),
-            Some(wire),
-            "the {query_param} query parameter for {value}"
-        );
+        for (index, key) in ["assetQueryFields", "timelineQueryFields"]
+            .iter()
+            .enumerate()
+        {
+            let sent = &server.calls()[index];
+            for name in names(key) {
+                assert_eq!(
+                    form_param(sent.query.as_bytes(), &name).as_deref(),
+                    Some(wire),
+                    "the {name} query parameter for {value}"
+                );
+            }
+        }
 
         let before = server.call_count();
         let options = UploadOptions::new().metadata(AssetUploadMetadata {
