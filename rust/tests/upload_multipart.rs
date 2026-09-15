@@ -34,8 +34,10 @@ fn dispositions(body: &[u8]) -> Vec<String> {
         .collect()
 }
 
-async fn upload_and_capture(filename: &str) -> Vec<u8> {
-    let path = std::env::temp_dir().join("imogen-upload-multipart.jpg");
+/// `on_disk` names the temporary file, because cargo runs the tests in one binary
+/// concurrently and a shared path is one test truncating the file another is reading.
+async fn upload_and_capture(on_disk: &str, filename: &str) -> Vec<u8> {
+    let path = std::env::temp_dir().join(on_disk);
     std::fs::write(&path, b"not really a jpeg").unwrap();
 
     let server = stub::start(|_, _| Reply::json("{}")).await;
@@ -58,7 +60,7 @@ async fn upload_and_capture(filename: &str) -> Vec<u8> {
 
 #[tokio::test]
 async fn the_file_part_carries_an_ordinary_filename_unchanged() {
-    let lines = dispositions(&upload_and_capture("PXL_1.jpg").await);
+    let lines = dispositions(&upload_and_capture("imogen-upload-ordinary.jpg", "PXL_1.jpg").await);
 
     assert!(
         lines
@@ -74,7 +76,7 @@ async fn the_file_part_carries_an_ordinary_filename_unchanged() {
 #[tokio::test]
 async fn a_quote_or_a_newline_in_the_filename_is_escaped_not_left_in_the_header() {
     let hostile = "he said \"hi\"\r\nContent-Disposition: form-data; name=\"evil\", ok.jpg";
-    let body = upload_and_capture(hostile).await;
+    let body = upload_and_capture("imogen-upload-hostile.jpg", hostile).await;
     let lines = dispositions(&body);
 
     let file_part: Vec<&String> = lines

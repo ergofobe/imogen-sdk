@@ -518,6 +518,7 @@
     }
   },
   "timeline": {
+    "$comment": "No bucket carries a cover: `covers` was not asked for, and every port must read that as null rather than as absent.",
     "payload": {
       "buckets": [
         {
@@ -532,7 +533,9 @@
     },
     "assert": {
       "buckets.0.date": "2024-06-01",
-      "buckets.0.count": 12
+      "buckets.0.count": 12,
+      "buckets.0.coverAssetId": null,
+      "buckets.1.coverAssetId": null
     }
   },
   "timelineBucket": {

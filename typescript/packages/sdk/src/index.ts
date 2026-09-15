@@ -25,6 +25,7 @@ export type {
   PersonWithPhotos,
   ProfileUpdate,
   ShareLink,
+  Timeline,
   TimelineBucket,
   TimelineBucketQuery,
   TimelineQuery,
