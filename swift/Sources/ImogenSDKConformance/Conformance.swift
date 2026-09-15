@@ -702,6 +702,74 @@ enum Conformance {
 
         expectEqual(seen, ["a", "b"])
     }
+
+    // MARK: Booleans on the wire
+
+    /// One field's value out of a multipart body, read the way a parser reads it: the part
+    /// whose disposition names it, then the bytes after its blank line. Searching the whole
+    /// body for the value instead would be satisfied by another part that happens to
+    /// contain the same few characters.
+    static func multipartField(_ body: Data, _ name: String) -> String? {
+        guard let text = String(data: body, encoding: .isoLatin1) else { return nil }
+        guard let first = text.components(separatedBy: "\r\n").first else { return nil }
+        let boundary = first + "\r\n"
+
+        for part in text.components(separatedBy: boundary).dropFirst() {
+            let halves = part.components(separatedBy: "\r\n\r\n")
+            guard halves.count >= 2, halves[0].contains("name=\"\(name)\"") else { continue }
+            return halves.dropFirst().joined(separator: "\r\n\r\n")
+                .components(separatedBy: "\r\n").first
+        }
+        return nil
+    }
+
+    /// imogen-sdk#36. A boolean has no representation of its own in a query string or a
+    /// multipart body, so what it is spelled as *is* the contract, and a port that spells
+    /// it its own language's way hands the server something it will refuse.
+    ///
+    /// Only `encode` is walked here. `decode` and `rejects` are for the port that parses an
+    /// inbound request; this one writes a query string and never reads one.
+    static func testABooleanIsSpelledTheWayTheContractSpellsIt() async throws {
+        let contract = try fixture("endpoints.json")["booleanOnTheWire"] as! [String: Any]
+        let queryParam = contract["queryParam"] as! String
+        let field = contract["multipartField"] as! String
+
+        let small = FileManager.default.temporaryDirectory
+            .appendingPathComponent("imogen-conformance-boolean.jpg")
+        try Data("not really a jpeg".utf8).write(to: small)
+
+        for case_ in contract["encode"] as! [[String: Any]] {
+            let value = case_["value"] as! Bool
+            let wire = case_["wire"] as! String
+
+            let session = stubbedSession(Conformance.defaultReply)
+            let client = ImogenClient(
+                options: ClientOptions(baseURL: Conformance.base, maxRetries: 0, session: session)
+            )
+
+            _ = try await client.assets.list(AssetQuery(favorite: value))
+            let listed = URLComponents(string: "?" + (StubState.shared.calls[0].query))
+            expectEqual(
+                listed?.queryItems?.first { $0.name == queryParam }?.value,
+                wire,
+                "the \(queryParam) query parameter for \(value)"
+            )
+
+            let before = StubState.shared.callCount
+            // What comes back does not matter: the stub records the request before it
+            // answers, and building a whole valid asset would tie this to a model it is
+            // not about.
+            _ = try? await client.assets.upload(
+                small, options: UploadOptions(metadata: AssetUploadMetadata(favorite: value))
+            )
+
+            expectEqual(
+                multipartField(StubState.shared.calls[before].body, field),
+                wire,
+                "the \(field) multipart field for \(value)"
+            )
+        }
+    }
 }
 
 /// A box, so the refresh callback can report back without capturing a `var`.

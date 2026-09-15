@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import { AssetStatus, AssetType } from './asset.js'
+import { WireBoolean } from './wire.js'
 
 /**
  * Cursor pagination. Offsets are wrong for a timeline that grows while you scroll:
@@ -36,10 +37,10 @@ export const AssetFilter = z.object({
   albumId: z.uuid().optional(),
   /** Photographs a given person appears in. */
   personId: z.uuid().optional(),
-  favorite: z.coerce.boolean().optional(),
-  archived: z.coerce.boolean().optional(),
+  favorite: WireBoolean.optional(),
+  archived: WireBoolean.optional(),
   /** When true, returns only trashed assets. Trashed assets are hidden otherwise. */
-  trashed: z.coerce.boolean().optional(),
+  trashed: WireBoolean.optional(),
   takenAfter: z.iso.datetime().optional(),
   takenBefore: z.iso.datetime().optional(),
   /** Bounding box filter: minLat,minLon,maxLat,maxLon */
@@ -70,7 +71,7 @@ export const TimelineBucket = z.object({
 export type TimelineBucket = z.infer<typeof TimelineBucket>
 
 export const TimelineQuery = AssetFilter.extend({
-  covers: z.coerce.boolean().optional(),
+  covers: WireBoolean.optional(),
 })
 export type TimelineQuery = z.infer<typeof TimelineQuery>
 

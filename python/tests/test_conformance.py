@@ -30,6 +30,7 @@ from imogen_sdk import (
     AssetQuery,
     AssetSelection,
     AssetUpdate,
+    AssetUploadMetadata,
     AuthConfig,
     DetectedFace,
     FaceStatus,
@@ -685,3 +686,60 @@ async def test_the_pairing_resource_indicator_travels_on_both_legs_or_neither(
         for call in exchanges:
             body = parse_qs(call.body.decode(), keep_blank_values=True)
             assert body.get("resource", [None])[0] == case["expectTokenParam"], case["name"]
+
+
+def _multipart_field(body: bytes, name: str) -> str | None:
+    """One field's value, read the way a parser reads it.
+
+    The part whose disposition names the field, then the bytes after its blank line.
+    Searching the whole body for the value instead would be satisfied by another part
+    that happens to contain the same few characters.
+    """
+    text = body.decode("latin-1")
+    boundary = text.split("\r\n", 1)[0] + "\r\n"
+    needle = f'name="{name}"'
+
+    for part in text.split(boundary)[1:]:
+        headers, _, value = part.partition("\r\n\r\n")
+        if needle in headers:
+            return value.split("\r\n", 1)[0]
+    return None
+
+
+async def test_a_boolean_is_spelled_the_way_the_contract_spells_it(
+    serve: Any, endpoints: Any, small_file: Path
+) -> None:
+    """imogen-sdk#36.
+
+    A boolean has no representation of its own in a query string or a multipart body, so
+    what it is spelled as *is* the contract, and a port that spells it its own language's
+    way — ``True``, which is what ``str(True)`` gives — hands the server something it will
+    refuse.
+
+    Only ``encode`` is walked here. ``decode`` and ``rejects`` are for the port that parses
+    an inbound request; this one writes a query string and never reads one.
+    """
+    contract = endpoints["booleanOnTheWire"]
+    query_param = contract["queryParam"]
+    field = contract["multipartField"]
+
+    for case in contract["encode"]:
+        value, wire = case["value"], case["wire"]
+        stub = serve(default_reply)
+
+        async with ImogenClient(stub.base_url, max_retries=0) as client:
+            await client.assets.list(AssetQuery(favorite=value))
+            # A query string and a form body share an encoding, so one reader does for both.
+            listed = parse_qs(stub.calls[0].query, keep_blank_values=True)
+            assert listed.get(query_param, [None])[0] == wire, f"{query_param} for {value}"
+
+            before = stub.call_count
+            # What comes back does not matter: the stub records the request before it
+            # answers, and building a whole valid asset would tie this to a model it is
+            # not about.
+            try:
+                await client.assets.upload(small_file, AssetUploadMetadata(favorite=value))
+            except Exception:  # noqa: BLE001 — the stub answers a listing, not an upload.
+                pass
+
+        assert _multipart_field(stub.calls[before].body, field) == wire, f"{field} for {value}"

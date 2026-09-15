@@ -1,5 +1,5 @@
 {
-  "$comment": "The canonical endpoint table under `resources`, and under `oauthResourceIndicator` and `pairingResourceIndicator` the request parameters whose presence is itself the contract. Every port has a test that walks this file and asserts its client builds exactly these method/path pairs. A path that drifts in one language fails there and nowhere else, which is the point.",
+  "$comment": "The canonical endpoint table under `resources`, and under `oauthResourceIndicator`, `pairingResourceIndicator` and `booleanOnTheWire` the request parameters whose presence — or spelling — is itself the contract. Every port has a test that walks this file and asserts its client builds exactly these method/path pairs. A path that drifts in one language fails there and nowhere else, which is the point.",
   "version": "0.1.0",
   "apiPrefix": "/api/v1",
   "resources": {
@@ -141,5 +141,24 @@
         "expectTokenParam": "https://photos.example.test"
       }
     ]
+  },
+  "booleanOnTheWire": {
+    "$comment": "A query string and a multipart body carry text and nothing else, so a boolean travelling in one has a spelling, and the spelling is the contract. `encode` is what every port writes; `decode` and `rejects` are how a reader takes it back. Reading it by truthiness instead is what imogen-sdk#36 was: every non-empty string is true in JavaScript, so `\"false\"` arrived as `true`, `favorite=false` favourited the photograph, and no value of the field could say otherwise — an import that set it on every line favourited the whole library. Hence `decode` names each accepted spelling one at a time and `rejects` names spellings that must be refused rather than guessed at: a request rejected is a bug report, a photograph silently favourited is not. `1` and `0` are taken because that is what an HTML form sends for a checkbox; a value present but empty carries no opinion and reads as absent, which is how `?covers=` arrives from a link that was built with no query at all. A real boolean passes through unchanged — these schemas also re-read metadata stored as JSON, where the field never became a string. Only a port that parses a request reads `decode` and `rejects`: a client encodes its own query string, it never decodes one.",
+    "queryParam": "favorite",
+    "multipartField": "favorite",
+    "encode": [
+      { "value": true, "wire": "true" },
+      { "value": false, "wire": "false" }
+    ],
+    "decode": [
+      { "wire": "true", "value": true },
+      { "wire": "false", "value": false },
+      { "wire": "1", "value": true },
+      { "wire": "0", "value": false },
+      { "wire": true, "value": true },
+      { "wire": false, "value": false },
+      { "$comment": "Present but empty: absent, rather than false. `null` here means the field is gone after parsing, not that it parsed to null.", "wire": "", "value": null }
+    ],
+    "rejects": ["yes", "no", "on", "off", "True", "FALSE", "2", "-1", "null"]
   }
 }

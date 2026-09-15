@@ -938,3 +938,82 @@ async fn the_pairing_resource_indicator_travels_on_both_legs_or_neither() {
         }
     }
 }
+
+// --- booleans on the wire ---
+
+/// One field's value out of a multipart body, read the way a parser reads it: the part
+/// whose disposition names it, then the bytes after its blank line. Searching the whole
+/// body for the value instead would be satisfied by another part that happens to contain
+/// the same few characters.
+fn multipart_field(body: &[u8], name: &str) -> Option<String> {
+    let text = String::from_utf8_lossy(body);
+    let boundary = format!("{}\r\n", text.split("\r\n").next()?);
+    let needle = format!("name=\"{name}\"");
+
+    text.split(&boundary).skip(1).find_map(|part| {
+        let (headers, value) = part.split_once("\r\n\r\n")?;
+        headers
+            .contains(&needle)
+            .then(|| value.split("\r\n").next().unwrap_or_default().to_string())
+    })
+}
+
+/// imogen-sdk#36. A boolean has no representation of its own in a query string or a
+/// multipart body, so what it is spelled as *is* the contract, and a port that spells it
+/// its own language's way — `True`, say — hands the server something it will refuse.
+///
+/// Only `encode` is walked here. `decode` and `rejects` are for the port that parses an
+/// inbound request; this one writes a query string and never reads one.
+#[tokio::test]
+async fn a_boolean_is_spelled_the_way_the_contract_spells_it() {
+    let endpoints = fixture(ENDPOINTS);
+    let contract = &endpoints["booleanOnTheWire"];
+    let query_param = contract["queryParam"].as_str().unwrap();
+    let field = contract["multipartField"].as_str().unwrap();
+
+    let small = std::env::temp_dir().join("imogen-conformance-boolean.jpg");
+    std::fs::write(&small, b"not really a jpeg").unwrap();
+
+    for case in contract["encode"].as_array().unwrap() {
+        let value = case["value"]
+            .as_bool()
+            .expect("the fixture names a boolean");
+        let wire = case["wire"]
+            .as_str()
+            .expect("the fixture names its spelling");
+
+        let server =
+            stub::start(|_, _| Reply::json(r#"{"items":[],"nextCursor":null,"total":0}"#)).await;
+        let client = ImogenClient::new(ClientOptions::new(&server.base_url).max_retries(0));
+
+        let query = AssetQuery {
+            favorite: Some(value),
+            ..Default::default()
+        };
+        drop(client.assets.list(&query).await);
+
+        // A query string and a form body share an encoding, so one reader does for both.
+        let listed = &server.calls()[0];
+        assert_eq!(
+            form_param(listed.query.as_bytes(), query_param).as_deref(),
+            Some(wire),
+            "the {query_param} query parameter for {value}"
+        );
+
+        let before = server.call_count();
+        let options = UploadOptions::new().metadata(AssetUploadMetadata {
+            favorite: Some(value),
+            ..Default::default()
+        });
+        // What comes back does not matter: the stub records the request before it answers,
+        // and building a whole valid asset would tie this to a model it is not about.
+        drop(client.assets.upload(&small, &options).await);
+
+        let uploaded = &server.calls()[before];
+        assert_eq!(
+            multipart_field(&uploaded.body, field).as_deref(),
+            Some(wire),
+            "the {field} multipart field for {value}"
+        );
+    }
+}

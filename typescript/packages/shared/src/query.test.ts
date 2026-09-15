@@ -5,6 +5,7 @@ import {
   AssetSelection,
   TimelineBucket,
   TimelineBucketQuery,
+  TimelineQuery,
   TimelineTile,
 } from './query.js'
 
@@ -56,9 +57,38 @@ describe('AssetQuery', () => {
     expect(parsed.order).toBe('desc')
   })
 
-  test('still coerces a query-string boolean', () => {
+  test('still reads a query-string boolean', () => {
     expect(AssetQuery.parse({ favorite: 'true' }).favorite).toBe(true)
   })
+})
+
+/*
+ * Every boolean a client can put in a query string, enumerated. `favorite` is the one the
+ * conformance fixture drives across all five ports (imogen-sdk#36); the other three are
+ * parsed by the same schema from the same kind of string, and were wrong in exactly the
+ * same way, so a fix applied to one and not the rest would go unnoticed here otherwise.
+ */
+describe('the boolean filters', () => {
+  // Read through each schema by name rather than indexed generically: `covers` lives on
+  // TimelineQuery and the other three on AssetFilter, and a key union across the two
+  // types is not something either can be indexed by.
+  const filters: Array<[string, (wire: unknown) => boolean | undefined]> = [
+    ['favorite', (wire) => AssetFilter.parse({ favorite: wire }).favorite],
+    ['archived', (wire) => AssetFilter.parse({ archived: wire }).archived],
+    ['trashed', (wire) => AssetFilter.parse({ trashed: wire }).trashed],
+    ['covers', (wire) => TimelineQuery.parse({ covers: wire }).covers],
+  ]
+
+  for (const [field, read] of filters) {
+    test(`${field} reads "false" as false rather than as a non-empty string`, () => {
+      expect(read('false')).toBe(false)
+      expect(read('true')).toBe(true)
+    })
+
+    test(`${field} refuses a spelling it does not know`, () => {
+      expect(() => read('maybe')).toThrow()
+    })
+  }
 })
 
 describe('TimelineBucket', () => {

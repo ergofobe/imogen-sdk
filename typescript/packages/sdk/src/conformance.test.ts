@@ -4,6 +4,8 @@ import {
   Album,
   AlbumAssetsResult,
   Asset,
+  AssetFilter,
+  AssetUploadMetadata,
   AuthConfig,
   BULK_UPLOAD_CONCURRENCY,
   DetectedFace,
@@ -39,7 +41,14 @@ const BASE = 'https://photos.example.test'
  * so the same three files drive the Rust, Python, Swift and Kotlin suites unchanged.
  */
 
-type Recorded = { method: string; path: string; query: URLSearchParams; body: string | null }
+type Recorded = {
+  method: string
+  path: string
+  query: URLSearchParams
+  body: string | null
+  /** The multipart body, when there was one. A `File` never survives `String(body)`. */
+  form: FormData | null
+}
 
 /**
  * Enough of a server for the SDK to get through a call. The resumable handshake is the
@@ -64,6 +73,7 @@ function recorder(): { calls: Recorded[]; fetch: FetchLike } {
       path: url.pathname,
       query: url.searchParams,
       body: typeof init?.body === 'string' ? init.body : null,
+      form: init?.body instanceof FormData ? init.body : null,
     })
     return new Response(JSON.stringify(stubBody(url.pathname)), {
       status: 200,
@@ -347,6 +357,56 @@ describe('the resource indicator on a pairing claim', () => {
       // rather than merely falsy.
       expect('resource' in body).toBe(item.expectClaimField !== null)
       expect(body.resource ?? null).toEqual(item.expectClaimField)
+    })
+  }
+})
+
+describe('a boolean on the wire', () => {
+  const contract = endpoints.booleanOnTheWire
+  const { queryParam, multipartField } = contract
+
+  for (const item of contract.encode) {
+    test(`a query parameter set to ${item.value} is spelled "${item.wire}"`, async () => {
+      const { calls, fetch } = recorder()
+      const client = new ImogenClient({ baseUrl: BASE, fetch, maxRetries: 0 })
+
+      await client.assets.list({ [queryParam]: item.value })
+      expect(calls[0]?.query.get(queryParam)).toBe(item.wire)
+    })
+
+    test(`a multipart field set to ${item.value} is spelled "${item.wire}"`, async () => {
+      const { calls, fetch } = recorder()
+      const client = new ImogenClient({ baseUrl: BASE, fetch, maxRetries: 0 })
+
+      await client.assets.upload(new File(['x'], 'a.jpg', { type: 'image/jpeg' }), {
+        [multipartField]: item.value,
+      })
+      expect(calls[0]?.form?.get(multipartField)).toBe(item.wire)
+    })
+  }
+
+  /**
+   * The read side, which only this port has: `HttpClient.request` casts rather than
+   * parses, so these schemas run where something calls a parse itself — the server
+   * validating an inbound query string or multipart body, and this suite. The other four
+   * ports encode and never decode a request, which is why they walk `encode` alone.
+   */
+  for (const item of contract.decode) {
+    const shown = JSON.stringify(item.wire)
+    test(`reads ${shown} as ${JSON.stringify(item.value)}`, () => {
+      // `?? null` because the fixture spells "gone after parsing" as null, which is the
+      // one thing neither field can legitimately hold.
+      expect(AssetUploadMetadata.parse({ favorite: item.wire }).favorite ?? null).toEqual(
+        item.value,
+      )
+      expect(AssetFilter.parse({ favorite: item.wire }).favorite ?? null).toEqual(item.value)
+    })
+  }
+
+  for (const wire of contract.rejects) {
+    test(`refuses ${JSON.stringify(wire)} rather than guessing at it`, () => {
+      expect(() => AssetUploadMetadata.parse({ favorite: wire })).toThrow()
+      expect(() => AssetFilter.parse({ favorite: wire })).toThrow()
     })
   }
 })

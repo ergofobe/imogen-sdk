@@ -102,6 +102,9 @@ await scenario("the pairing resource indicator travels on both legs or neither")
 await scenario("iterates every page exactly once") {
     try await Conformance.testIteratesEveryPageExactlyOnce()
 }
+await scenario("a boolean is spelled the way the contract spells it") {
+    try await Conformance.testABooleanIsSpelledTheWayTheContractSpellsIt()
+}
 
 print("")
 if failures.isEmpty {

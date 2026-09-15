@@ -637,6 +637,77 @@ class ConformanceTest {
         }
     }
 
+    /**
+     * One field's value out of a multipart body, read the way a parser reads it: the part
+     * whose disposition names it, then the bytes after its blank line. Searching the whole
+     * body for the value instead would be satisfied by another part that happens to contain
+     * the same few characters.
+     */
+    private fun multipartField(body: ByteArray, name: String): String? {
+        val text = String(body, Charsets.ISO_8859_1)
+        val boundary = text.substringBefore("\r\n") + "\r\n"
+        return text.split(boundary).drop(1).firstNotNullOfOrNull { part ->
+            val headers = part.substringBefore("\r\n\r\n")
+            if (!part.contains("\r\n\r\n") || !headers.contains("name=\"$name\"")) {
+                null
+            } else {
+                part.substringAfter("\r\n\r\n").substringBefore("\r\n")
+            }
+        }
+    }
+
+    /**
+     * imogen-sdk#36. A boolean has no representation of its own in a query string or a
+     * multipart body, so what it is spelled as *is* the contract, and a port that spells it
+     * its own language's way hands the server something it will refuse.
+     *
+     * Only `encode` is walked here. `decode` and `rejects` are for the port that parses an
+     * inbound request; this one writes a query string and never reads one.
+     */
+    @Test
+    fun `a boolean is spelled the way the contract spells it`() = runTest {
+        val contract = fixture("endpoints.json")["booleanOnTheWire"] as JsonObject
+        val queryParam = contract["queryParam"]!!.jsonPrimitive.content
+        val field = contract["multipartField"]!!.jsonPrimitive.content
+
+        val small = File.createTempFile("imogen-conformance-boolean", ".jpg").apply {
+            writeBytes("not really a jpeg".toByteArray())
+            deleteOnExit()
+        }
+
+        for (case in contract["encode"] as JsonArray) {
+            val value = case.jsonObject["value"]!!.jsonPrimitive.content.toBoolean()
+            val wire = case.jsonObject["wire"]!!.jsonPrimitive.content
+
+            val stub = Stub(defaultReply)
+            client(stub, maxRetries = 0).use { imogen ->
+                imogen.assets.list(AssetQuery(favorite = value))
+                assertEquals(
+                    wire,
+                    parseQueryString(stub.calls.first().query)[queryParam],
+                    "the $queryParam query parameter for $value",
+                )
+
+                val before = stub.callCount
+                // What comes back does not matter: the stub records the request before it
+                // answers, and building a whole valid asset would tie this to a model it is
+                // not about.
+                runCatching {
+                    imogen.assets.upload(
+                        small,
+                        UploadOptions(metadata = AssetUploadMetadata(favorite = value)),
+                    )
+                }
+
+                assertEquals(
+                    wire,
+                    multipartField(stub.calls[before].body, field),
+                    "the $field multipart field for $value",
+                )
+            }
+        }
+    }
+
     private fun expected(value: JsonElement): String? =
         if (value is JsonNull) null else value.jsonPrimitive.content
 
