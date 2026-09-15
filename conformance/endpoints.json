@@ -143,7 +143,7 @@
     ]
   },
   "booleanOnTheWire": {
-    "$comment": "A query string and a multipart body carry text and nothing else, so a boolean travelling in one has a spelling, and the spelling is the contract. `encode` is what every port writes; `decode` and `rejects` are how a reader takes it back. Reading it by truthiness instead is what imogen-sdk#36 was: every non-empty string is true in JavaScript, so `\"false\"` arrived as `true`, `favorite=false` favourited the photograph, and no value of the field could say otherwise — an import that set it on every line favourited the whole library. Hence `decode` names each accepted spelling one at a time and `rejects` names spellings that must be refused rather than guessed at: a request rejected is a bug report, a photograph silently favourited is not. `1` and `0` are taken because that is what an HTML form sends for a checkbox; a value present but empty carries no opinion and reads as absent, which is how `?covers=` arrives from a link that was built with no query at all. A real boolean passes through unchanged — these schemas also re-read metadata stored as JSON, where the field never became a string. Only a port that parses a request reads `decode` and `rejects`: a client encodes its own query string, it never decodes one.",
+    "$comment": "A query string and a multipart body carry text and nothing else, so a boolean travelling in one has a spelling, and the spelling is the contract. `encode` is what every port writes; `decode` and `rejects` are how a reader takes it back. Reading it by truthiness instead is what imogen-sdk#36 was: every non-empty string is true in JavaScript, so `\"false\"` arrived as `true`, `favorite=false` favourited the photograph, and no value of the field could say otherwise — an import that set it on every line favourited the whole library. Hence `decode` names each accepted spelling one at a time and `rejects` names spellings that must be refused rather than guessed at: a request rejected is a bug report, a photograph silently favourited is not. `1` and `0` are taken because that is what an HTML form sends for a checkbox; a value present but empty carries no opinion and reads as no value at all — the same as never having been sent, rather than as `false` — which is how `?covers=` arrives from a link that was built with no query at all; an explicit JSON null, which is how a stored metadata blob spells \"never set\", reads the same way. A real boolean passes through unchanged — these schemas also re-read metadata stored as JSON, where the field never became a string. Only a port that parses a request reads `decode` and `rejects`: a client encodes its own query string, it never decodes one.",
     "queryParam": "favorite",
     "multipartField": "favorite",
     "encode": [
@@ -157,7 +157,8 @@
       { "wire": "0", "value": false },
       { "wire": true, "value": true },
       { "wire": false, "value": false },
-      { "$comment": "Present but empty: absent, rather than false. `null` here means the field is gone after parsing, not that it parsed to null.", "wire": "", "value": null }
+      { "$comment": "Present but carrying no opinion: `null` here is the fixture's way of saying the field holds no value after parsing — the same as never having been sent — rather than that it parsed to a null.", "wire": "", "value": null },
+      { "wire": null, "value": null }
     ],
     "rejects": ["yes", "no", "on", "off", "True", "FALSE", "2", "-1", "null"]
   }
