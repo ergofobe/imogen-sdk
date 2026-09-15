@@ -732,15 +732,22 @@ async def test_a_boolean_is_spelled_the_way_the_contract_spells_it(
             # field the contract names but this does not set fails as a missing parameter,
             # which is the port being told to catch up.
             await client.assets.list(AssetQuery(favorite=value, archived=value, trashed=value))
+            # The timeline carries the listing's filters too, through a builder of its own,
+            # so it is asked for every field rather than only its own ``covers``.
             try:
-                await client.assets.timeline(TimelineQuery(covers=value))
+                await client.assets.timeline(
+                    TimelineQuery(favorite=value, archived=value, trashed=value, covers=value)
+                )
             except Exception:  # noqa: BLE001 — the stub answers a listing, not a timeline.
                 pass
 
             # A query string and a form body share an encoding, so one reader does for both.
-            for index, key in enumerate(["assetQueryFields", "timelineQueryFields"]):
+            asset_fields = contract["assetQueryFields"]
+            for index, fields in enumerate(
+                [asset_fields, asset_fields + contract["timelineQueryFields"]]
+            ):
                 sent = parse_qs(stub.calls[index].query, keep_blank_values=True)
-                for name in contract[key]:
+                for name in fields:
                     assert sent.get(name, [None])[0] == wire, f"{name} for {value}"
 
             before = stub.call_count

@@ -374,9 +374,17 @@ describe('a boolean on the wire', () => {
       // names but this does not set fails as a missing parameter, which is the port being
       // told to catch up.
       await client.assets.list({ favorite: item.value, archived: item.value, trashed: item.value })
-      await client.assets.timeline({ covers: item.value })
+      // The timeline carries the listing's filters too, through a builder of its own, so it
+      // is asked for every field rather than only its own `covers`.
+      await client.assets.timeline({
+        favorite: item.value,
+        archived: item.value,
+        trashed: item.value,
+        covers: item.value,
+      })
 
-      const sent = [contract.assetQueryFields, contract.timelineQueryFields]
+      const { assetQueryFields, timelineQueryFields } = contract
+      const sent = [assetQueryFields, [...assetQueryFields, ...timelineQueryFields]]
       for (const [index, fields] of sent.entries()) {
         for (const name of fields) {
           expect({ [name]: calls[index]?.query.get(name) }).toEqual({ [name]: item.wire })
@@ -404,12 +412,18 @@ describe('a boolean on the wire', () => {
   for (const item of contract.decode) {
     const shown = JSON.stringify(item.wire)
     test(`reads ${shown} as ${JSON.stringify(item.value)}`, () => {
-      // `?? null` because the fixture spells "gone after parsing" as null, which is the
-      // one thing neither field can legitimately hold.
+      // `?? null` because the fixture spells "holds no value after parsing" as null, which
+      // is the one thing neither field can legitimately hold.
       expect(AssetUploadMetadata.parse({ favorite: item.wire }).favorite ?? null).toEqual(
         item.value,
       )
-      expect(AssetFilter.parse({ favorite: item.wire }).favorite ?? null).toEqual(item.value)
+
+      const parsed = AssetFilter.parse({ favorite: item.wire })
+      expect(parsed.favorite ?? null).toEqual(item.value)
+      // Emptied, not removed. `imogen-server` reads these filters with `!== undefined`, so
+      // the two are the same to it — but a reader walking `Object.entries` sees the key, and
+      // this is the line that would notice if a zod upgrade started dropping it instead.
+      expect('favorite' in parsed).toBe(true)
     })
   }
 

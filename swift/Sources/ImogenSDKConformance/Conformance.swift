@@ -752,13 +752,23 @@ enum Conformance {
             _ = try await client.assets.list(
                 AssetQuery(favorite: value, archived: value, trashed: value)
             )
-            // The stub answers every path with a listing, so the timeline decode fails; the
-            // request is recorded before the answer, which is all this needs.
-            _ = try? await client.assets.timeline(TimelineQuery(covers: value))
+            // The timeline carries the listing's filters too, through a builder of its own,
+            // so it is asked for every field rather than only its own `covers`. The stub
+            // answers every path with a listing, so its decode fails; the request is
+            // recorded before the answer, which is all this needs.
+            _ = try? await client.assets.timeline(
+                TimelineQuery(
+                    filter: AssetFilter(favorite: value, archived: value, trashed: value),
+                    covers: value
+                )
+            )
 
-            for (index, key) in ["assetQueryFields", "timelineQueryFields"].enumerated() {
+            let assetFields = contract["assetQueryFields"] as! [String]
+            let timelineFields = assetFields + (contract["timelineQueryFields"] as! [String])
+
+            for (index, fields) in [assetFields, timelineFields].enumerated() {
                 let sent = URLComponents(string: "?" + StubState.shared.calls[index].query)
-                for name in contract[key] as! [String] {
+                for name in fields {
                     expectEqual(
                         sent?.queryItems?.first { $0.name == name }?.value,
                         wire,

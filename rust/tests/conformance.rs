@@ -1003,21 +1003,32 @@ async fn a_boolean_is_spelled_the_way_the_contract_spells_it() {
             ..Default::default()
         };
         drop(client.assets.list(&listing).await);
+        // The timeline carries the listing's filters too, through a builder of its own, so
+        // it is asked for every field rather than only its own `covers`.
         let timeline = TimelineQuery {
             covers: Some(value),
-            ..Default::default()
+            filter: AssetFilter {
+                favorite: Some(value),
+                archived: Some(value),
+                trashed: Some(value),
+                ..Default::default()
+            },
         };
         drop(client.assets.timeline(&timeline).await);
 
         // A query string and a form body share an encoding, so one reader does for both.
-        for (index, key) in ["assetQueryFields", "timelineQueryFields"]
+        let asset_fields = names("assetQueryFields");
+        let timeline_fields: Vec<String> = asset_fields
             .iter()
-            .enumerate()
-        {
+            .cloned()
+            .chain(names("timelineQueryFields"))
+            .collect();
+
+        for (index, fields) in [&asset_fields, &timeline_fields].iter().enumerate() {
             let sent = &server.calls()[index];
-            for name in names(key) {
+            for name in fields.iter() {
                 assert_eq!(
-                    form_param(sent.query.as_bytes(), &name).as_deref(),
+                    form_param(sent.query.as_bytes(), name).as_deref(),
                     Some(wire),
                     "the {name} query parameter for {value}"
                 );

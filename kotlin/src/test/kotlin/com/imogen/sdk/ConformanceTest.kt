@@ -688,13 +688,28 @@ class ConformanceTest {
                 imogen.assets.list(
                     AssetQuery(favorite = value, archived = value, trashed = value)
                 )
-                // The stub answers every path with a listing, so the timeline decode fails;
-                // the request is recorded before the answer, which is all this needs.
-                runCatching { imogen.assets.timeline(TimelineQuery(covers = value)) }
+                // The timeline carries the listing's filters too, through a builder of its
+                // own, so it is asked for every field rather than only its own `covers`. The
+                // stub answers every path with a listing, so its decode fails; the request is
+                // recorded before the answer, which is all this needs.
+                runCatching {
+                    imogen.assets.timeline(
+                        TimelineQuery(
+                            filter = AssetFilter(
+                                favorite = value,
+                                archived = value,
+                                trashed = value,
+                            ),
+                            covers = value,
+                        )
+                    )
+                }
 
-                listOf("assetQueryFields", "timelineQueryFields").forEachIndexed { index, key ->
+                val assetFields = names("assetQueryFields")
+                val fieldsPerCall = listOf(assetFields, assetFields + names("timelineQueryFields"))
+                fieldsPerCall.forEachIndexed { index, fields ->
                     val sent = parseQueryString(stub.calls[index].query)
-                    for (name in names(key)) {
+                    for (name in fields) {
                         assertEquals(wire, sent[name], "the $name query parameter for $value")
                     }
                 }

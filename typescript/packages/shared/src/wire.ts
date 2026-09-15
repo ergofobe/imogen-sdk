@@ -12,9 +12,10 @@ import { z } from 'zod'
  * The spelling is the contract instead, and `conformance/endpoints.json` holds it under
  * `booleanOnTheWire`. `1` and `0` are taken as well because they are the other spelling a
  * hand-written client reaches for; a native checkbox's own `on` is not, since a form posting
- * one would have to be told what `value` to send in any case. An unrecognised spelling is
- * refused rather than guessed at — a rejected request is a bug report, a silently favourited
- * photograph is not.
+ * one would have to be told what `value` to send in any case. As *strings* only: a JSON body
+ * has real booleans to hand, so the numbers `1` and `0` are refused there and a client
+ * writing JSON writes `true`. An unrecognised spelling is refused rather than guessed at —
+ * a rejected request is a bug report, a silently favourited photograph is not.
  *
  * An already-boolean value passes through untouched: these schemas also type this package's
  * own callers, and re-read upload metadata stored as JSON, where the field never became a
