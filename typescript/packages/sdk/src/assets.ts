@@ -1,5 +1,6 @@
 import type {
   Asset,
+  AssetPage,
   AssetQuery,
   AssetSelection,
   AssetUpdate,
@@ -9,10 +10,10 @@ import type {
   LibraryStats,
   ShareLink,
   ShareLinkCreate,
-  TimelineBucket,
+  TilePage,
+  Timeline,
   TimelineBucketQuery,
   TimelineQuery,
-  TimelineTile,
   UploadSession,
 } from '@imogen/shared'
 import {
@@ -23,8 +24,9 @@ import {
 } from '@imogen/shared'
 import type { HttpClient } from './http.js'
 
-export type AssetPage = { items: Asset[]; nextCursor: string | null; total: number | null }
-export type TilePage = { items: TimelineTile[]; nextCursor: string | null; total: number | null }
+// Re-exported rather than restated: the envelope is a model in the contract, like every
+// other, and a second spelling of it here is a second thing to keep in step.
+export type { AssetPage, TilePage } from '@imogen/shared'
 
 /**
  * The id list is the older, shorter way of saying the same thing.
@@ -114,7 +116,7 @@ export class Assets {
     return this.http.request('POST', '/api/v1/assets/restore', { body: selectionBody(selection) })
   }
 
-  timeline(query: Partial<TimelineQuery> = {}): Promise<{ buckets: TimelineBucket[] }> {
+  timeline(query: Partial<TimelineQuery> = {}): Promise<Timeline> {
     return this.http.request('GET', '/api/v1/assets/timeline', { query })
   }
 

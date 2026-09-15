@@ -1,13 +1,16 @@
-import type { AssetSelection, TimelineBucket, TimelineBucketQuery } from '@imogen/shared'
-import { type AssetPage, selectionBody, type TilePage } from './assets.js'
+import type {
+  AssetPage,
+  AssetSelection,
+  TilePage,
+  Timeline,
+  TimelineBucketQuery,
+  VaultStatus,
+} from '@imogen/shared'
+import { selectionBody } from './assets.js'
 import type { HttpClient } from './http.js'
 
-export type VaultStatus = {
-  configured: boolean
-  unlocked: boolean
-  /** Only present while unlocked: a locked vault does not reveal its size. */
-  count?: number
-}
+// Re-exported rather than restated: the status is a model in the contract like any other.
+export type { VaultStatus } from '@imogen/shared'
 
 /**
  * The vault holds photographs kept out of the ordinary library entirely — absent from
@@ -62,7 +65,7 @@ export class Vault {
    * deliberately cannot express "inside the vault", so the scoping is done server-side
    * behind the unlock rather than by anything the caller sends.
    */
-  timeline(query: { covers?: boolean } = {}): Promise<{ buckets: TimelineBucket[] }> {
+  timeline(query: { covers?: boolean } = {}): Promise<Timeline> {
     return this.http.request('GET', '/api/v1/vault/timeline', { query })
   }
 

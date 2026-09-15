@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { AssetStatus, AssetType } from './asset.js'
+import { Asset, AssetStatus, AssetType } from './asset.js'
 import { WireBoolean } from './wire.js'
 
 /**
@@ -21,6 +21,10 @@ export function pageOf<T extends z.ZodType>(item: T) {
     total: z.number().int().nonnegative().nullable(),
   })
 }
+
+/** A page of the library. The envelope `GET /assets` and the vault listing both use. */
+export const AssetPage = pageOf(Asset)
+export type AssetPage = z.infer<typeof AssetPage>
 
 export const AssetSort = z.enum(['capturedAt', 'createdAt', 'filename'])
 export type AssetSort = z.infer<typeof AssetSort>
@@ -70,6 +74,13 @@ export const TimelineBucket = z.object({
 })
 export type TimelineBucket = z.infer<typeof TimelineBucket>
 
+/**
+ * The whole spine, one row per day. Not a page: the timeline endpoint answers with every
+ * bucket at once, because a scroller cannot size itself from half of them.
+ */
+export const Timeline = z.object({ buckets: z.array(TimelineBucket) })
+export type Timeline = z.infer<typeof Timeline>
+
 export const TimelineQuery = AssetFilter.extend({
   covers: WireBoolean.optional(),
 })
@@ -94,6 +105,10 @@ export const TimelineTile = z.object({
   livePhotoVideoId: z.uuid().nullable(),
 })
 export type TimelineTile = z.infer<typeof TimelineTile>
+
+/** A page of tiles, which is what one period of the timeline hands back. */
+export const TilePage = pageOf(TimelineTile)
+export type TilePage = z.infer<typeof TilePage>
 
 export const TimelineBucketQuery = AssetFilter.extend({
   /**
