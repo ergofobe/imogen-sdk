@@ -105,6 +105,12 @@ await scenario("iterates every page exactly once") {
 await scenario("a boolean is spelled the way the contract spells it") {
     try await Conformance.testABooleanIsSpelledTheWayTheContractSpellsIt()
 }
+await scenario("the file part carries an ordinary filename unchanged") {
+    try await UploadMultipart.testTheFilePartCarriesAnOrdinaryFilenameUnchanged()
+}
+await scenario("a quote or a newline in the filename is escaped, not left in the header") {
+    try await UploadMultipart.testAQuoteOrANewlineInTheFilenameIsEscaped()
+}
 
 print("")
 if failures.isEmpty {
