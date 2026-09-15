@@ -53,6 +53,16 @@ reads it:
 This is the answer to the obvious problem with five clients: they drift. A mocked test
 proves a client agrees with itself. These fixtures prove the five agree with each other.
 
+**With one gap, in the TypeScript port.** Its schemas are types at the call site, not a
+runtime decoder: `HttpClient.request` casts the response rather than parsing it, and nothing
+in the shipped source calls a parse. So a rule expressed as a *decode* — "a location with a
+missing or out-of-range coordinate is no location" is the current example — is applied to
+every response by Rust, Python, Kotlin and Swift, and by TypeScript only inside its own
+conformance test. A TypeScript caller receives whatever the server sent. The fixtures pass
+in all five either way, which is what makes this worth saying out loud rather than leaving
+to be discovered. Tracked in
+[#42](https://github.com/ergofobe/imogen-sdk/issues/42).
+
 They do not prove the *server* agrees. That is
 [`api/sdk-contract.test.ts`](https://github.com/ergofobe/imogen-server) in the server
 repository, which stands up a real app and drives it through the published TypeScript

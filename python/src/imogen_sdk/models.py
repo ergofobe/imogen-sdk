@@ -197,9 +197,12 @@ class Asset(Contract):
         not something a client can show. The shape has to be absorbed rather than
         rejected: a server that read a GPS block and made nothing usable of it still
         answers with the object, and clients outlive the servers they talk to. This is the
-        response path only: on the way out, :class:`GeoPoint` is range-checked in the
-        TypeScript port and nowhere else, so a client here can still send a latitude of
-        200 and have it come back as no location at all. See ergofobe/imogen-sdk#40.
+        response path, and in four ports: Python, Rust, Kotlin and Swift apply it on every
+        decode, while the TypeScript port casts its responses rather than parsing them, so
+        a TypeScript caller sees whatever the server sent (imogen-sdk#42). Nothing checks
+        the range on the way *out* in any port -- those bounds bite only whoever calls a
+        parse, which in practice is the server validating an inbound body, never the
+        client sending one (imogen-sdk#40).
         """
         if isinstance(value, dict) and (
             _unusable_coordinate(value.get("latitude"), 90)
