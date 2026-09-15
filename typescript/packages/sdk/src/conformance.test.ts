@@ -4,6 +4,8 @@ import {
   Album,
   AlbumAssetsResult,
   Asset,
+  AssetFilter,
+  AssetUploadMetadata,
   AuthConfig,
   BULK_UPLOAD_CONCURRENCY,
   DetectedFace,
@@ -39,7 +41,14 @@ const BASE = 'https://photos.example.test'
  * so the same three files drive the Rust, Python, Swift and Kotlin suites unchanged.
  */
 
-type Recorded = { method: string; path: string; query: URLSearchParams; body: string | null }
+type Recorded = {
+  method: string
+  path: string
+  query: URLSearchParams
+  body: string | null
+  /** The multipart body, when there was one. A `File` never survives `String(body)`. */
+  form: FormData | null
+}
 
 /**
  * Enough of a server for the SDK to get through a call. The resumable handshake is the
@@ -64,6 +73,7 @@ function recorder(): { calls: Recorded[]; fetch: FetchLike } {
       path: url.pathname,
       query: url.searchParams,
       body: typeof init?.body === 'string' ? init.body : null,
+      form: init?.body instanceof FormData ? init.body : null,
     })
     return new Response(JSON.stringify(stubBody(url.pathname)), {
       status: 200,
@@ -347,6 +357,80 @@ describe('the resource indicator on a pairing claim', () => {
       // rather than merely falsy.
       expect('resource' in body).toBe(item.expectClaimField !== null)
       expect(body.resource ?? null).toEqual(item.expectClaimField)
+    })
+  }
+})
+
+describe('a boolean on the wire', () => {
+  const contract = endpoints.booleanOnTheWire
+  const { multipartField } = contract
+
+  for (const item of contract.encode) {
+    test(`a query parameter set to ${item.value} is spelled "${item.wire}"`, async () => {
+      const { calls, fetch } = recorder()
+      const client = new ImogenClient({ baseUrl: BASE, fetch, maxRetries: 0 })
+
+      // Both query builders, because each query shape has its own: a field the contract
+      // names but this does not set fails as a missing parameter, which is the port being
+      // told to catch up.
+      await client.assets.list({ favorite: item.value, archived: item.value, trashed: item.value })
+      // The timeline carries the listing's filters too, through a builder of its own, so it
+      // is asked for every field rather than only its own `covers`.
+      await client.assets.timeline({
+        favorite: item.value,
+        archived: item.value,
+        trashed: item.value,
+        covers: item.value,
+      })
+
+      const { assetQueryFields, timelineQueryFields } = contract
+      const sent = [assetQueryFields, [...assetQueryFields, ...timelineQueryFields]]
+      for (const [index, fields] of sent.entries()) {
+        for (const name of fields) {
+          expect({ [name]: calls[index]?.query.get(name) }).toEqual({ [name]: item.wire })
+        }
+      }
+    })
+
+    test(`a multipart field set to ${item.value} is spelled "${item.wire}"`, async () => {
+      const { calls, fetch } = recorder()
+      const client = new ImogenClient({ baseUrl: BASE, fetch, maxRetries: 0 })
+
+      await client.assets.upload(new File(['x'], 'a.jpg', { type: 'image/jpeg' }), {
+        [multipartField]: item.value,
+      })
+      expect(calls[0]?.form?.get(multipartField)).toBe(item.wire)
+    })
+  }
+
+  /**
+   * The read side, which only this port has: `HttpClient.request` casts rather than
+   * parses, so these schemas run where something calls a parse itself — the server
+   * validating an inbound query string or multipart body, and this suite. The other four
+   * ports encode and never decode a request, which is why they walk `encode` alone.
+   */
+  for (const item of contract.decode) {
+    const shown = JSON.stringify(item.wire)
+    test(`reads ${shown} as ${JSON.stringify(item.value)}`, () => {
+      // `?? null` because the fixture spells "holds no value after parsing" as null, which
+      // is the one thing neither field can legitimately hold.
+      expect(AssetUploadMetadata.parse({ favorite: item.wire }).favorite ?? null).toEqual(
+        item.value,
+      )
+
+      const parsed = AssetFilter.parse({ favorite: item.wire })
+      expect(parsed.favorite ?? null).toEqual(item.value)
+      // Emptied, not removed. `imogen-server` reads these filters with `!== undefined`, so
+      // the two are the same to it — but a reader walking `Object.entries` sees the key, and
+      // this is the line that would notice if a zod upgrade started dropping it instead.
+      expect('favorite' in parsed).toBe(true)
+    })
+  }
+
+  for (const wire of contract.rejects) {
+    test(`refuses ${JSON.stringify(wire)} rather than guessing at it`, () => {
+      expect(() => AssetUploadMetadata.parse({ favorite: wire })).toThrow()
+      expect(() => AssetFilter.parse({ favorite: wire })).toThrow()
     })
   }
 })

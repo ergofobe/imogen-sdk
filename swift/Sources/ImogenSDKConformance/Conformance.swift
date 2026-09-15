@@ -702,6 +702,96 @@ enum Conformance {
 
         expectEqual(seen, ["a", "b"])
     }
+
+    // MARK: Booleans on the wire
+
+    /// One field's value out of a multipart body, read the way a parser reads it: the part
+    /// whose disposition names it, then the bytes after its blank line. Searching the whole
+    /// body for the value instead would be satisfied by another part that happens to
+    /// contain the same few characters.
+    static func multipartField(_ body: Data, _ name: String) -> String? {
+        guard let text = String(data: body, encoding: .isoLatin1) else { return nil }
+        guard let first = text.components(separatedBy: "\r\n").first else { return nil }
+        let boundary = first + "\r\n"
+
+        for part in text.components(separatedBy: boundary).dropFirst() {
+            let halves = part.components(separatedBy: "\r\n\r\n")
+            guard halves.count >= 2, halves[0].contains("name=\"\(name)\"") else { continue }
+            return halves.dropFirst().joined(separator: "\r\n\r\n")
+                .components(separatedBy: "\r\n").first
+        }
+        return nil
+    }
+
+    /// imogen-sdk#36. A boolean has no representation of its own in a query string or a
+    /// multipart body, so what it is spelled as *is* the contract, and a port that spells
+    /// it its own language's way hands the server something it will refuse.
+    ///
+    /// Only `encode` is walked here. `decode` and `rejects` are for the port that parses an
+    /// inbound request; this one writes a query string and never reads one.
+    static func testABooleanIsSpelledTheWayTheContractSpellsIt() async throws {
+        let contract = try fixture("endpoints.json")["booleanOnTheWire"] as! [String: Any]
+        let field = contract["multipartField"] as! String
+
+        let small = FileManager.default.temporaryDirectory
+            .appendingPathComponent("imogen-conformance-boolean.jpg")
+        try Data("not really a jpeg".utf8).write(to: small)
+
+        for case_ in contract["encode"] as! [[String: Any]] {
+            let value = case_["value"] as! Bool
+            let wire = case_["wire"] as! String
+
+            let session = stubbedSession(Conformance.defaultReply)
+            let client = ImogenClient(
+                options: ClientOptions(baseURL: Conformance.base, maxRetries: 0, session: session)
+            )
+
+            // Both query builders, because each query shape has its own hand-written one:
+            // a field the contract names but this does not set fails as a missing
+            // parameter, which is the port being told to catch up.
+            _ = try await client.assets.list(
+                AssetQuery(favorite: value, archived: value, trashed: value)
+            )
+            // The timeline carries the listing's filters too, through a builder of its own,
+            // so it is asked for every field rather than only its own `covers`. The stub
+            // answers every path with a listing, so its decode fails; the request is
+            // recorded before the answer, which is all this needs.
+            _ = try? await client.assets.timeline(
+                TimelineQuery(
+                    filter: AssetFilter(favorite: value, archived: value, trashed: value),
+                    covers: value
+                )
+            )
+
+            let assetFields = contract["assetQueryFields"] as! [String]
+            let timelineFields = assetFields + (contract["timelineQueryFields"] as! [String])
+
+            for (index, fields) in [assetFields, timelineFields].enumerated() {
+                let sent = URLComponents(string: "?" + StubState.shared.calls[index].query)
+                for name in fields {
+                    expectEqual(
+                        sent?.queryItems?.first { $0.name == name }?.value,
+                        wire,
+                        "the \(name) query parameter for \(value)"
+                    )
+                }
+            }
+
+            let before = StubState.shared.callCount
+            // What comes back does not matter: the stub records the request before it
+            // answers, and building a whole valid asset would tie this to a model it is
+            // not about.
+            _ = try? await client.assets.upload(
+                small, options: UploadOptions(metadata: AssetUploadMetadata(favorite: value))
+            )
+
+            expectEqual(
+                multipartField(StubState.shared.calls[before].body, field),
+                wire,
+                "the \(field) multipart field for \(value)"
+            )
+        }
+    }
 }
 
 /// A box, so the refresh callback can report back without capturing a `var`.

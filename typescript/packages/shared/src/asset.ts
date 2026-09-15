@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { WireBoolean } from './wire.js'
 
 export const AssetType = z.enum(['image', 'video'])
 export type AssetType = z.infer<typeof AssetType>
@@ -119,7 +120,7 @@ export type AssetUpdate = z.infer<typeof AssetUpdate>
 export const AssetUploadMetadata = z.object({
   deviceAssetId: z.string().max(512).optional(),
   capturedAt: z.iso.datetime().optional(),
-  favorite: z.coerce.boolean().optional(),
+  favorite: WireBoolean.optional(),
   filename: z.string().max(1024).optional(),
   description: z.string().max(4096).optional(),
   location: GeoPoint.optional(),
