@@ -323,7 +323,7 @@ impl Assets {
         let bytes = tokio::fs::read(path).await?;
 
         let part = reqwest::multipart::Part::bytes(bytes)
-            .file_name(filename)
+            .file_name(form_data_filename(&filename))
             .mime_str(&mime)
             .map_err(Error::Transport)?;
         let mut form = reqwest::multipart::Form::new().part("file", part);
@@ -487,6 +487,39 @@ impl Assets {
             .collect()
             .await
     }
+}
+
+/// A filename as multipart/form-data spells it.
+///
+/// reqwest escapes the name itself, with a backslash — and the format honours no
+/// backslash escapes: measured against real parsers, undici rejects the entire body on
+/// meeting one, a 400 for the whole upload rather than a mangled name, and Bun keeps the
+/// backslashes in the name it stores. These three percent-escapes are what the WHATWG
+/// algorithm prescribes instead, and what every other port emits. Escaping here rather
+/// than after the fact leaves reqwest none of those three to escape.
+///
+/// One character is left over: reqwest doubles a backslash, which the WHATWG algorithm
+/// leaves alone, and nothing that can be passed to `file_name` prevents it — half a
+/// backslash is not a thing to hand it. Python's httpx doubles it too, so a name carrying
+/// one goes out doubled from those two ports and single from the other three. Escaping it
+/// to `%5C` would only trade one divergence for another; unpicking it means not using
+/// reqwest's multipart writer at all. The three characters the tests pin down are the
+/// three the format actually breaks on.
+///
+/// Escaping is all this buys: undici decodes the escapes back, but Bun — which the server
+/// runs — does not, so a hostile name is stored escaped rather than restored. A caller who
+/// sets `metadata.filename` also sends it in a part body, where nothing has to be escaped
+/// and the exact name survives; a caller who leaves it unset has this header as the only
+/// carrier, and the escapes reach storage. Mangled beats truncated, and beats a 400 for
+/// the whole upload.
+///
+/// `%` itself is deliberately not escaped, because the WHATWG algorithm does not escape
+/// it either. The mapping is therefore not injective: a real `100%22off.jpg` is sent
+/// unchanged and a decoding parser reads it back as `100"off.jpg`.
+fn form_data_filename(name: &str) -> String {
+    name.replace('\r', "%0D")
+        .replace('\n', "%0A")
+        .replace('"', "%22")
 }
 
 fn file_name(path: &Path) -> String {

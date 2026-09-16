@@ -5,13 +5,17 @@ import {
   AlbumAssetsResult,
   Asset,
   AssetFilter,
+  AssetPage,
   AssetUploadMetadata,
   AuthConfig,
   BULK_UPLOAD_CONCURRENCY,
   DetectedFace,
   FaceStatus,
   LibraryStats,
+  PairingClaim,
   PairingClaimRequest,
+  PairingStatus,
+  PairingTicket,
   Person,
   ProtectedResourceMetadata,
   QueueHealth,
@@ -19,11 +23,14 @@ import {
   ServerSettings,
   ShareLink,
   StorageReport,
+  Timeline,
   TimelineBucket,
+  TimelineTile,
   TokenResponse,
   UPLOAD_CHUNK_BYTES,
   UploadSession,
   User,
+  VaultStatus,
 } from '@imogen/shared'
 import endpoints from '../../../../conformance/endpoints.json' with { type: 'json' }
 import errors from '../../../../conformance/errors.json' with { type: 'json' }
@@ -444,6 +451,7 @@ describe('models decode as the contract says', () => {
     assetLocationLatitudeOutOfRange: Asset,
     assetLocationLongitudeOutOfRange: Asset,
     assetLocationAtTheBounds: Asset,
+    assetPage: AssetPage,
     album: Album,
     albumAssetsResult: AlbumAssetsResult,
     shareLink: ShareLink,
@@ -454,6 +462,11 @@ describe('models decode as the contract says', () => {
     personUnnamed: Person,
     detectedFace: DetectedFace,
     faceStatus: FaceStatus,
+    vaultStatusLocked: VaultStatus,
+    vaultStatusUnlocked: VaultStatus,
+    timeline: Timeline,
+    timelineBucket: TimelineBucket,
+    timelineTile: TimelineTile,
     libraryStats: LibraryStats,
     uploadSession: UploadSession,
     adminUser: AdminUser,
@@ -463,6 +476,10 @@ describe('models decode as the contract says', () => {
     tokenResponse: TokenResponse,
     protectedResourceMetadata: ProtectedResourceMetadata,
     protectedResourceMetadataMinimal: ProtectedResourceMetadata,
+    pairingTicket: PairingTicket,
+    pairingStatusUnclaimed: PairingStatus,
+    pairingStatusClaimed: PairingStatus,
+    pairingClaim: PairingClaim,
   }
 
   function at(value: unknown, path: string): unknown {
@@ -476,25 +493,41 @@ describe('models decode as the contract says', () => {
   type Json = string | number | boolean | null | Json[] | { [key: string]: Json }
   const fixtures = models as unknown as Record<string, Fixture | string>
 
-  for (const [name, schema] of Object.entries(schemas)) {
-    const fixture = fixtures[name]
-    if (!fixture || typeof fixture === 'string') continue
+  /** `$comment` and `version` describe the file rather than a model. */
+  function isFixture(name: string, entry: Fixture | string): entry is Fixture {
+    return !name.startsWith('$') && name !== 'version' && typeof entry !== 'string'
+  }
 
+  const named = Object.entries(fixtures).filter(([name, entry]) => isFixture(name, entry)) as Array<
+    [string, Fixture]
+  >
+
+  // The loop below walks the fixture file, not the map, so this only restates in one
+  // failure what would otherwise arrive as several. Registering is the point: a fixture
+  // added to the contract and forgotten here used to be skipped in silence.
+  test('every fixture in the contract has a schema to decode it', () => {
+    expect(named.map(([name]) => name).filter((name) => !schemas[name])).toEqual([])
+  })
+
+  for (const [name, fixture] of named) {
     test(`${name}`, () => {
-      const parsed = schema.parse(fixture.payload)
+      const schema = schemas[name]
+      if (!schema) throw new Error(`no schema is registered for the ${name} fixture`)
+
+      // Decoded and re-encoded, as the other four ports do it. Parsing alone would read
+      // a field straight off the payload the schema never modelled; going back out
+      // through JSON is what proves the model itself carries it — for every assert but a
+      // null one, since the walker below reads an absent key as null exactly as the other
+      // four walkers do, and cannot tell a dropped field from a carried null.
+      const encoded = JSON.parse(JSON.stringify(schema.parse(fixture.payload))) as unknown
+
       // Keyed by path so a failure names the field rather than dumping the whole model.
       for (const [path, expected] of Object.entries(fixture.assert)) {
-        const actual = (at(parsed, path) ?? null) as Json
+        const actual = (at(encoded, path) ?? null) as Json
         expect({ [path]: actual }).toEqual({ [path]: expected })
       }
     })
   }
-
-  test('the timeline bucket fixture decodes', () => {
-    for (const bucket of models.timeline.payload.buckets) {
-      expect(TimelineBucket.parse(bucket)).toEqual({ ...bucket, coverAssetId: null })
-    }
-  })
 })
 
 describe('error classification', () => {

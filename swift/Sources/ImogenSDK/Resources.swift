@@ -181,7 +181,8 @@ public struct Assets: Sendable {
         // on disk — an importer restoring a name an export truncated, for instance.
         let uploadName = options.metadata.filename ?? fileURL.lastPathComponent
         body.append(
-            "Content-Disposition: form-data; name=\"file\"; filename=\"\(uploadName)\"\r\n"
+            "Content-Disposition: form-data; name=\"file\"; "
+                + "filename=\"\(formDataFilename(uploadName))\"\r\n"
         )
         body.append("Content-Type: \(mimeType(for: fileURL))\r\n\r\n")
         body.append(try Data(contentsOf: fileURL))
@@ -817,6 +818,31 @@ enum AnyJSON: Encodable {
 func fileSize(of url: URL) throws -> Int {
     let values = try url.resourceValues(forKeys: [.fileSizeKey])
     return values.fileSize ?? 0
+}
+
+/// A filename as multipart/form-data spells it.
+///
+/// This port assembles the body by hand, so an unescaped name is not merely a truncated
+/// parameter: a CRLF in it ends the header and starts one of the caller's choosing, in a
+/// value that on a phone is whatever the photograph is called in the library. Backslashes
+/// are not the answer either — the format honours no backslash escapes, and measured
+/// against real parsers undici rejects the entire body on meeting one while Bun keeps them
+/// in the name it stores. These three percent-escapes are what the WHATWG algorithm
+/// prescribes, and what every other port emits.
+///
+/// Escaping is all this buys: undici decodes the escapes back, but Bun — which the server
+/// runs — does not, so a hostile name is stored escaped rather than restored. A caller who
+/// sets `metadata.filename` also sends it in a part body, where nothing has to be escaped
+/// and the exact name survives; a caller who leaves it unset has this header as the only
+/// carrier, and the escapes reach storage. Mangled beats a part header written by the name.
+///
+/// `%` itself is deliberately not escaped, because the WHATWG algorithm does not escape it
+/// either. The mapping is therefore not injective: a real `100%22off.jpg` is sent unchanged
+/// and a decoding parser reads it back as `100"off.jpg`.
+func formDataFilename(_ name: String) -> String {
+    name.replacingOccurrences(of: "\r", with: "%0D")
+        .replacingOccurrences(of: "\n", with: "%0A")
+        .replacingOccurrences(of: "\"", with: "%22")
 }
 
 /// Enough of a guess for the server to accept the part. The server re-sniffs the bytes
