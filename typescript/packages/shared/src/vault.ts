@@ -19,3 +19,9 @@ export const VaultStatus = z.object({
   count: z.number().int().nonnegative().optional(),
 })
 export type VaultStatus = z.infer<typeof VaultStatus>
+
+/** How many photographs crossed the boundary, in either direction. */
+export const VaultMoveResult = z.object({
+  moved: z.number().int().nonnegative(),
+})
+export type VaultMoveResult = z.infer<typeof VaultMoveResult>

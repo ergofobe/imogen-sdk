@@ -1,11 +1,5 @@
-import type {
-  AssetPage,
-  AssetSelection,
-  TilePage,
-  Timeline,
-  TimelineBucketQuery,
-  VaultStatus,
-} from '@imogen/shared'
+import type { AssetSelection, TimelineBucketQuery } from '@imogen/shared'
+import { AssetPage, TilePage, Timeline, VaultMoveResult, VaultStatus } from '@imogen/shared'
 import { selectionBody } from './assets.js'
 import type { HttpClient } from './http.js'
 
@@ -24,7 +18,7 @@ export class Vault {
   constructor(private readonly http: HttpClient) {}
 
   status(): Promise<VaultStatus> {
-    return this.http.request<VaultStatus>('GET', '/api/v1/vault/status')
+    return this.http.request('GET', '/api/v1/vault/status', { decode: VaultStatus })
   }
 
   /** Sets the passphrase. Changing an existing one requires the vault to be open. */
@@ -55,7 +49,10 @@ export class Vault {
    * does not page, which is exactly what `total` beside a null cursor is there to say.
    */
   list(limit = 200): Promise<AssetPage> {
-    return this.http.request<AssetPage>('GET', '/api/v1/vault/assets', { query: { limit } })
+    return this.http.request('GET', '/api/v1/vault/assets', {
+      query: { limit },
+      decode: AssetPage,
+    })
   }
 
   /**
@@ -66,7 +63,7 @@ export class Vault {
    * behind the unlock rather than by anything the caller sends.
    */
   timeline(query: { covers?: boolean } = {}): Promise<Timeline> {
-    return this.http.request('GET', '/api/v1/vault/timeline', { query })
+    return this.http.request('GET', '/api/v1/vault/timeline', { query, decode: Timeline })
   }
 
   /**
@@ -77,14 +74,23 @@ export class Vault {
   timelineBucket(
     query: Pick<TimelineBucketQuery, 'period'> & { cursor?: string; limit?: number },
   ): Promise<TilePage> {
-    return this.http.request<TilePage>('GET', '/api/v1/vault/timeline/bucket', { query })
+    return this.http.request('GET', '/api/v1/vault/timeline/bucket', {
+      query,
+      decode: TilePage,
+    })
   }
 
   moveIn(selection: string[] | AssetSelection): Promise<{ moved: number }> {
-    return this.http.request('POST', '/api/v1/vault/assets', { body: selectionBody(selection) })
+    return this.http.request('POST', '/api/v1/vault/assets', {
+      body: selectionBody(selection),
+      decode: VaultMoveResult,
+    })
   }
 
   moveOut(selection: string[] | AssetSelection): Promise<{ moved: number }> {
-    return this.http.request('DELETE', '/api/v1/vault/assets', { body: selectionBody(selection) })
+    return this.http.request('DELETE', '/api/v1/vault/assets', {
+      body: selectionBody(selection),
+      decode: VaultMoveResult,
+    })
   }
 }

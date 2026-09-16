@@ -171,6 +171,16 @@ export function assetSelectionProblem(selection: {
   return null
 }
 
+/**
+ * What a destructive call on a selection answers: how many photographs it actually
+ * touched. A selection by query cannot know that number before it is run, which is why
+ * the count comes back rather than being assumed from the request.
+ */
+export const AssetSelectionResult = z.object({
+  count: z.number().int().nonnegative(),
+})
+export type AssetSelectionResult = z.infer<typeof AssetSelectionResult>
+
 export const LibraryStats = z.object({
   assetCount: z.number().int().nonnegative(),
   imageCount: z.number().int().nonnegative(),

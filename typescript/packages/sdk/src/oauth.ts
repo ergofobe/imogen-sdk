@@ -1,9 +1,9 @@
-import type {
+import {
   ClientRegistrationResponse,
   ProtectedResourceMetadata,
   TokenResponse,
 } from '@imogen/shared'
-import type { FetchLike } from './http.js'
+import { decodeResponse, type FetchLike } from './http.js'
 
 export type AuthorizationServerMetadata = {
   issuer: string
@@ -14,6 +14,12 @@ export type AuthorizationServerMetadata = {
   scopes_supported: string[]
   code_challenge_methods_supported: string[]
 }
+
+/*
+ * This client reads its documents straight off `fetch` rather than through `HttpClient`,
+ * so it calls the shared decoder itself. `AuthorizationServerMetadata` is deliberately not
+ * decoded: RFC 8414 lets a server omit most of it, and the contract models none of it.
+ */
 
 /** A resource this server publishes a protected-resource document for: the REST API, or MCP. */
 export type ProtectedResourcePath = '' | '/mcp'
@@ -96,7 +102,12 @@ export class OAuthClient {
       `${this.baseUrl}/.well-known/oauth-protected-resource${path}`,
     )
     if (!response.ok) throw new Error('Could not read the protected resource metadata')
-    return (await response.json()) as ProtectedResourceMetadata
+    return decodeResponse(
+      ProtectedResourceMetadata,
+      await response.json(),
+      'GET',
+      `/.well-known/oauth-protected-resource${path}`,
+    )
   }
 
   /** RFC 7591 dynamic registration, so an app never ships a hard-coded client id. */
@@ -119,7 +130,12 @@ export class OAuthClient {
       }),
     })
     if (!response.ok) throw new Error(`Registration failed: ${await response.text()}`)
-    return (await response.json()) as ClientRegistrationResponse
+    return decodeResponse(
+      ClientRegistrationResponse,
+      await response.json(),
+      'POST',
+      metadata.registration_endpoint,
+    )
   }
 
   /**
@@ -221,7 +237,12 @@ export class OAuthClient {
       } | null
       throw new Error(body?.error_description ?? body?.error ?? 'Token request failed')
     }
-    const tokens = (await response.json()) as TokenResponse
+    const tokens = decodeResponse(
+      TokenResponse,
+      await response.json(),
+      'POST',
+      metadata.token_endpoint,
+    )
     return { ...tokens, obtainedAt: Date.now() }
   }
 }

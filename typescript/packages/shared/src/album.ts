@@ -15,6 +15,10 @@ export const Album = z.object({
 })
 export type Album = z.infer<typeof Album>
 
+/** The envelope `GET /albums` answers with. Unpaged: albums are few and cheap. */
+export const AlbumList = z.object({ items: z.array(Album) })
+export type AlbumList = z.infer<typeof AlbumList>
+
 export const AlbumWithAssets = Album.extend({
   assets: z
     .array(Asset)
@@ -53,6 +57,12 @@ export const AlbumAssetsResult = z.object({
 })
 export type AlbumAssetsResult = z.infer<typeof AlbumAssetsResult>
 
+/** Result of removing assets: a removal names ids that may not all have been in it. */
+export const AlbumAssetsRemoved = z.object({
+  removed: z.number().int().nonnegative(),
+})
+export type AlbumAssetsRemoved = z.infer<typeof AlbumAssetsRemoved>
+
 export const ShareLink = z.object({
   slug: z.string(),
   url: z.url(),
@@ -64,6 +74,13 @@ export const ShareLink = z.object({
   createdAt: z.iso.datetime(),
 })
 export type ShareLink = z.infer<typeof ShareLink>
+
+/**
+ * What a share lookup answers. A photograph that was never published is not an error, so
+ * the absence is a null in a 200 rather than a 404.
+ */
+export const ShareLinkOrNone = ShareLink.nullable()
+export type ShareLinkOrNone = z.infer<typeof ShareLinkOrNone>
 
 export const ShareLinkCreate = z.object({
   expiresAt: z.iso.datetime().nullable().optional(),

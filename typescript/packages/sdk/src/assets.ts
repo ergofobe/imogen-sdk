@@ -1,26 +1,29 @@
 import type {
-  Asset,
-  AssetPage,
   AssetQuery,
   AssetSelection,
   AssetUpdate,
   AssetUploadMetadata,
-  AssetUploadResult,
   AssetVariant,
-  LibraryStats,
-  ShareLink,
   ShareLinkCreate,
-  TilePage,
-  Timeline,
   TimelineBucketQuery,
   TimelineQuery,
-  UploadSession,
 } from '@imogen/shared'
 import {
+  Asset,
+  AssetPage,
+  AssetSelectionResult,
+  AssetUploadResult,
   assetSelectionProblem,
   BULK_UPLOAD_CONCURRENCY,
+  LibraryStats,
   RESUMABLE_THRESHOLD_BYTES,
+  ShareLink,
+  ShareLinkOrNone,
+  TilePage,
+  Timeline,
   UPLOAD_CHUNK_BYTES,
+  UploadChunkProgress,
+  UploadSession,
 } from '@imogen/shared'
 import type { HttpClient } from './http.js'
 
@@ -71,7 +74,7 @@ export class Assets {
   constructor(private readonly http: HttpClient) {}
 
   list(query: Partial<AssetQuery> = {}): Promise<AssetPage> {
-    return this.http.request<AssetPage>('GET', '/api/v1/assets', { query })
+    return this.http.request('GET', '/api/v1/assets', { query, decode: AssetPage })
   }
 
   /** Walks every page, so a caller can `for await` the whole library. */
@@ -85,18 +88,21 @@ export class Assets {
   }
 
   get(assetId: string): Promise<Asset> {
-    return this.http.request<Asset>('GET', `/api/v1/assets/${assetId}`)
+    return this.http.request('GET', `/api/v1/assets/${assetId}`, { decode: Asset })
   }
 
   /** The live public link for one photo, or null. */
   shareLink(assetId: string): Promise<ShareLink | null> {
-    return this.http.request<ShareLink | null>('GET', `/api/v1/assets/${assetId}/share`)
+    return this.http.request('GET', `/api/v1/assets/${assetId}/share`, {
+      decode: ShareLinkOrNone,
+    })
   }
 
   /** Publishes one photo. Replaces any existing link for it. */
   share(assetId: string, input: Partial<ShareLinkCreate> = {}): Promise<ShareLink> {
-    return this.http.request<ShareLink>('POST', `/api/v1/assets/${assetId}/share`, {
+    return this.http.request('POST', `/api/v1/assets/${assetId}/share`, {
       body: { allowDownload: true, ...input },
+      decode: ShareLink,
     })
   }
 
@@ -105,19 +111,28 @@ export class Assets {
   }
 
   update(assetId: string, patch: AssetUpdate): Promise<Asset> {
-    return this.http.request<Asset>('PATCH', `/api/v1/assets/${assetId}`, { body: patch })
+    return this.http.request('PATCH', `/api/v1/assets/${assetId}`, {
+      body: patch,
+      decode: Asset,
+    })
   }
 
   trash(selection: string[] | AssetSelection): Promise<{ count: number }> {
-    return this.http.request('POST', '/api/v1/assets/trash', { body: selectionBody(selection) })
+    return this.http.request('POST', '/api/v1/assets/trash', {
+      body: selectionBody(selection),
+      decode: AssetSelectionResult,
+    })
   }
 
   restore(selection: string[] | AssetSelection): Promise<{ count: number }> {
-    return this.http.request('POST', '/api/v1/assets/restore', { body: selectionBody(selection) })
+    return this.http.request('POST', '/api/v1/assets/restore', {
+      body: selectionBody(selection),
+      decode: AssetSelectionResult,
+    })
   }
 
   timeline(query: Partial<TimelineQuery> = {}): Promise<Timeline> {
-    return this.http.request('GET', '/api/v1/assets/timeline', { query })
+    return this.http.request('GET', '/api/v1/assets/timeline', { query, decode: Timeline })
   }
 
   /**
@@ -127,11 +142,14 @@ export class Assets {
   timelineBucket(
     query: Pick<TimelineBucketQuery, 'period'> & Partial<TimelineBucketQuery>,
   ): Promise<TilePage> {
-    return this.http.request<TilePage>('GET', '/api/v1/assets/timeline/bucket', { query })
+    return this.http.request('GET', '/api/v1/assets/timeline/bucket', {
+      query,
+      decode: TilePage,
+    })
   }
 
   stats(): Promise<LibraryStats> {
-    return this.http.request<LibraryStats>('GET', '/api/v1/assets/stats')
+    return this.http.request('GET', '/api/v1/assets/stats', { decode: LibraryStats })
   }
 
   /** A URL suitable for an `<img src>`. Browsers send the session cookie themselves. */
@@ -170,8 +188,9 @@ export class Assets {
     if (options.description) form.set('description', options.description)
     if (options.location) form.set('location', JSON.stringify(options.location))
 
-    const result = await this.http.request<AssetUploadResult>('POST', '/api/v1/assets', {
+    const result = await this.http.request('POST', '/api/v1/assets', {
       formData: form,
+      decode: AssetUploadResult,
       ...(options.signal ? { signal: options.signal } : {}),
     })
     options.onProgress?.({ loaded: file.size, total: file.size })
@@ -179,7 +198,8 @@ export class Assets {
   }
 
   private async uploadResumable(file: File, options: UploadOptions): Promise<AssetUploadResult> {
-    const session = await this.http.request<UploadSession>('POST', '/api/v1/uploads', {
+    const session = await this.http.request('POST', '/api/v1/uploads', {
+      decode: UploadSession,
       body: {
         filename: options.filename ?? file.name,
         sizeBytes: file.size,
@@ -204,21 +224,22 @@ export class Assets {
       const end = Math.min(offset + UPLOAD_CHUNK_BYTES, file.size)
       const chunk = file.slice(offset, end)
 
-      const response = await this.http.send('PATCH', `/api/v1/uploads/${session.id}`, {
+      // Through `request` rather than `send`: the answer is a model like any other, and
+      // an offset the contract cannot read would otherwise drive the loop below.
+      const progress = await this.http.request('PATCH', `/api/v1/uploads/${session.id}`, {
         raw: await chunk.arrayBuffer(),
         headers: { 'Upload-Offset': String(offset), 'Content-Type': 'application/octet-stream' },
+        decode: UploadChunkProgress,
         ...(options.signal ? { signal: options.signal } : {}),
       })
-      const progress = (await response.json()) as { offset: number }
       offset = progress.offset
       options.onProgress?.({ loaded: offset, total: file.size })
     }
 
-    return this.http.request<AssetUploadResult>(
-      'POST',
-      `/api/v1/uploads/${session.id}/complete`,
-      options.signal ? { signal: options.signal } : {},
-    )
+    return this.http.request('POST', `/api/v1/uploads/${session.id}/complete`, {
+      decode: AssetUploadResult,
+      ...(options.signal ? { signal: options.signal } : {}),
+    })
   }
 
   /**

@@ -13,6 +13,9 @@ export const Person = z.object({
 })
 export type Person = z.infer<typeof Person>
 
+export const PersonList = z.object({ items: z.array(Person) })
+export type PersonList = z.infer<typeof PersonList>
+
 export const PersonWithPhotos = Person.extend({
   photos: z
     .array(Asset)
@@ -43,6 +46,9 @@ export const DetectedFace = z.object({
 })
 export type DetectedFace = z.infer<typeof DetectedFace>
 
+export const DetectedFaceList = z.object({ items: z.array(DetectedFace) })
+export type DetectedFaceList = z.infer<typeof DetectedFaceList>
+
 export const PersonUpdate = z.object({
   name: z.string().min(1).max(128).nullable().optional(),
   hidden: z.boolean().optional(),
@@ -55,6 +61,12 @@ export const MergePeople = z.object({
   mergeIds: z.array(z.uuid()).min(1).max(50),
 })
 export type MergePeople = z.infer<typeof MergePeople>
+
+/** How many faces changed hands. Merging is by cluster, so the count is of faces. */
+export const PeopleMergeResult = z.object({
+  moved: z.number().int().nonnegative(),
+})
+export type PeopleMergeResult = z.infer<typeof PeopleMergeResult>
 
 export const ReassignFaces = z.object({
   faceIds: z.array(z.uuid()).min(1).max(500),

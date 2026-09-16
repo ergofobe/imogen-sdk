@@ -1,11 +1,10 @@
 import type {
-  AuthConfig,
   LoginRequest,
   PasswordChangeRequest,
   ProfileUpdate,
   SignupRequest,
-  User,
 } from '@imogen/shared'
+import { AuthConfig, User } from '@imogen/shared'
 import type { HttpClient } from './http.js'
 
 export class Auth {
@@ -13,15 +12,15 @@ export class Auth {
 
   /** What the sign-in screen needs before anyone has authenticated. */
   config(): Promise<AuthConfig> {
-    return this.http.request<AuthConfig>('GET', '/api/v1/auth/config')
+    return this.http.request('GET', '/api/v1/auth/config', { decode: AuthConfig })
   }
 
   login(request: LoginRequest): Promise<User> {
-    return this.http.request<User>('POST', '/api/v1/auth/login', { body: request })
+    return this.http.request('POST', '/api/v1/auth/login', { body: request, decode: User })
   }
 
   signup(request: SignupRequest): Promise<User> {
-    return this.http.request<User>('POST', '/api/v1/auth/signup', { body: request })
+    return this.http.request('POST', '/api/v1/auth/signup', { body: request, decode: User })
   }
 
   logout(): Promise<void> {
@@ -33,12 +32,12 @@ export class Auth {
   }
 
   me(): Promise<User> {
-    return this.http.request<User>('GET', '/api/v1/auth/me')
+    return this.http.request('GET', '/api/v1/auth/me', { decode: User })
   }
 
   /** Edits your own name or email. Not available to provider-managed accounts. */
   updateProfile(patch: ProfileUpdate): Promise<User> {
-    return this.http.request<User>('PATCH', '/api/v1/auth/me', { body: patch })
+    return this.http.request('PATCH', '/api/v1/auth/me', { body: patch, decode: User })
   }
 
   changePassword(request: PasswordChangeRequest): Promise<void> {

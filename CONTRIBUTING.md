@@ -111,6 +111,13 @@ enforced is that the SDK may only *add*: a new endpoint is called on request rat
 unconditionally, a new request field is optional and ignorable by a server that has never
 heard of it, and a new response field is optional in every port's model.
 
+Since [#42](https://github.com/ergofobe/imogen-sdk/issues/42) it also checks the other
+direction, without anyone having to add a case: the TypeScript client decodes what it is
+given, so every read in that file now runs the released server's real answers through this
+branch's schemas. A model tightened past what the server out there sends turns red here,
+which is the same failure by a different route — a change that needs a server change to
+function.
+
 The job checks that a released server does not *choke* on something new, never that it
 *honours* it — ignoring an unknown field is exactly what makes a change additive. Whether
 the current server gives a new field meaning is `sdk-contract.test.ts`'s question, on the

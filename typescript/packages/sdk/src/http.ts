@@ -1,4 +1,4 @@
-import { ImogenError } from './errors.js'
+import { ImogenDecodeError, ImogenError } from './errors.js'
 
 export type TokenProvider = string | (() => string | null | Promise<string | null>)
 
@@ -23,7 +23,34 @@ export type ClientOptions = {
   maxRetries?: number
 }
 
-export type RequestOptions = {
+/**
+ * Anything that turns a parsed JSON body into a model. Every schema in `@imogen/shared`
+ * is one; the structural type is what keeps zod out of this package's dependencies.
+ */
+export type ResponseDecoder<T> = { parse: (input: unknown) => T }
+
+/**
+ * Runs one decoder over one body, and turns a failure into an `ImogenError`.
+ *
+ * Absorbing rather than rejecting is the schemas' job, not this one's: they are written so
+ * that a field the server got wrong costs that field and not the response. What reaches
+ * here is a body the contract cannot read at all, and silently accepting one of those is
+ * the bug this exists to stop.
+ */
+export function decodeResponse<T>(
+  decoder: ResponseDecoder<T>,
+  payload: unknown,
+  method: string,
+  path: string,
+): T {
+  try {
+    return decoder.parse(payload)
+  } catch (error) {
+    throw new ImogenDecodeError(method, path, error)
+  }
+}
+
+export type RequestOptions<T = unknown> = {
   query?: Record<string, unknown>
   body?: unknown
   formData?: FormData
@@ -31,6 +58,16 @@ export type RequestOptions = {
   signal?: AbortSignal
   /** Raw bytes, for chunked uploads. */
   raw?: BodyInit
+  /**
+   * The contract's schema for this response. Given one, the body is decoded rather than
+   * cast, which is what applies the rules the schemas express — a location outside its
+   * own bounds decoding as no location, and so on. Rust, Python, Kotlin and Swift decode
+   * every response; this is where this port does the same (imogen-sdk#42).
+   *
+   * Omitted only where the answer is nothing at all: a 204, or bytes read through
+   * {@link HttpClient.send}.
+   */
+  decode?: ResponseDecoder<T>
 }
 
 /**
@@ -64,10 +101,12 @@ export class HttpClient {
     return value ? `Bearer ${value}` : null
   }
 
-  async request<T>(method: string, path: string, options: RequestOptions = {}): Promise<T> {
+  async request<T>(method: string, path: string, options: RequestOptions<T> = {}): Promise<T> {
     const response = await this.send(method, path, options)
     if (response.status === 204) return undefined as T
-    return (await response.json()) as T
+    const payload = await response.json()
+    if (!options.decode) return payload as T
+    return decodeResponse(options.decode, payload, method, path)
   }
 
   async send(method: string, path: string, options: RequestOptions = {}): Promise<Response> {

@@ -92,6 +92,21 @@ Transient failures (429, 5xx, a dropped connection) are retried twice with expon
 backoff and full jitter — so a fleet of phones coming back after an outage does not arrive
 in lockstep. Rejections the server will keep making are not retried.
 
+`ImogenDecodeError` is the one subclass, thrown when a 200 carries a body the contract
+cannot read. It is still an `ImogenError`, so the catch above already covers it.
+
+## What you get back is the contract, not the wire
+
+Responses are decoded through the same schemas the other four clients use, rather than
+cast. That is what applies rules the types alone cannot state — a location with a missing
+or out-of-range coordinate arrives as `null`, because a coordinate no map can place is no
+location, and every port agrees on that.
+
+Decoding absorbs rather than rejects. A malformed location costs the location and not the
+photograph, and a field this version has never heard of is dropped rather than refused, so
+a client built against a newer contract keeps working against the server that is actually
+running.
+
 ## Tokens that change
 
 `token` may be a function, sync or async, for a token that lives behind storage.

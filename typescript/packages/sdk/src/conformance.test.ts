@@ -36,7 +36,7 @@ import endpoints from '../../../../conformance/endpoints.json' with { type: 'jso
 import errors from '../../../../conformance/errors.json' with { type: 'json' }
 import models from '../../../../conformance/models.json' with { type: 'json' }
 import { ImogenClient } from './client.js'
-import { ImogenError } from './errors.js'
+import { ImogenDecodeError, ImogenError } from './errors.js'
 import type { FetchLike } from './http.js'
 import { OAuthClient } from './oauth.js'
 
@@ -57,18 +57,29 @@ type Recorded = {
   form: FormData | null
 }
 
+/** The stub's upload session, which is also the `{sessionId}` the endpoint table expects. */
+const SESSION_ID = '00000000-0000-4000-8000-00000000e55a'
+
 /**
  * Enough of a server for the SDK to get through a call. The resumable handshake is the
  * only part that needs real answers: it opens a session, then chunks until the reported
- * offset reaches the end, so a stub that always says nought loops for ever.
+ * offset reaches the end, so a stub that always says nought loops for ever. Its session
+ * has to decode, now that the client parses what it is given; every other route answers
+ * an empty page, and the calls that cannot read that are caught below.
  */
 function stubBody(pathname: string): unknown {
   if (pathname === '/api/v1/uploads') {
-    return { id: 'SESSION', offset: 0, sizeBytes: RESUMABLE_THRESHOLD_BYTES, existing: null }
+    return {
+      id: SESSION_ID,
+      offset: 0,
+      sizeBytes: RESUMABLE_THRESHOLD_BYTES,
+      expiresAt: '2030-01-01T00:00:00.000Z',
+      existing: null,
+    }
   }
   if (pathname.startsWith('/api/v1/uploads/')) return { offset: RESUMABLE_THRESHOLD_BYTES }
-  // Shaped so both `{ items }` destructuring and plain object returns survive.
-  return { items: [] }
+  // Shaped so both `{ items }` destructuring and page envelopes survive.
+  return { items: [], nextCursor: null, total: 0 }
 }
 
 function recorder(): { calls: Recorded[]; fetch: FetchLike } {
@@ -88,6 +99,22 @@ function recorder(): { calls: Recorded[]; fetch: FetchLike } {
     })
   }
   return { calls, fetch }
+}
+
+/**
+ * Runs a call for the request it sends, and forgives the answer.
+ *
+ * One stub body cannot satisfy seventy schemas, and now that the client decodes what it
+ * is given, most of these calls reject on the way back. Only a decode failure is
+ * forgiven: anything else — a refused selection, a transport bug — is still a failure,
+ * so these keep testing what they always tested.
+ */
+async function requestOnly(call: unknown): Promise<void> {
+  try {
+    await call
+  } catch (error) {
+    if (!(error instanceof ImogenDecodeError)) throw error
+  }
 }
 
 /** A File-alike, so the resumable path is exercised without allocating 64 MB. */
@@ -183,7 +210,7 @@ describe('endpoint table', () => {
     'admin.clients': (c) => c.admin.clients(),
     'admin.revokeClient': (c) => c.admin.revokeClient('CLIENT'),
     'admin.sessions': (c) => c.admin.sessions(),
-    'admin.revokeSession': (c) => c.admin.revokeSession('SESSION'),
+    'admin.revokeSession': (c) => c.admin.revokeSession(SESSION_ID),
     'admin.storage': (c) => c.admin.storage(),
     'admin.settings': (c) => c.admin.settings(),
     'admin.updateSettings': (c) => c.admin.updateSettings({ allowSignup: true }),
@@ -216,7 +243,7 @@ describe('endpoint table', () => {
     inviteId: 'INVITE',
     jobId: 'JOB',
     clientId: 'CLIENT',
-    sessionId: 'SESSION',
+    sessionId: SESSION_ID,
     shareId: 'SHARE',
     ticketId: 'TICKET',
     variant: 'thumbnail',
@@ -242,7 +269,7 @@ describe('endpoint table', () => {
       test(`${key} calls ${endpoint.method} ${endpoint.path}`, async () => {
         const { calls, fetch } = recorder()
         const client = new ImogenClient({ baseUrl: BASE, fetch, maxRetries: 0 })
-        await invocations[key]?.(client)
+        await requestOnly(invocations[key]?.(client))
 
         const want = { method: endpoint.method, path: concrete(endpoint.path) }
         expect(calls.map((c) => ({ method: c.method, path: c.path }))).toContainEqual(want)
@@ -347,15 +374,17 @@ describe('the resource indicator on a pairing claim', () => {
 
       // Through the schema rather than around it: the contract is `PairingClaimRequest`,
       // and a port that never modelled `resource` strips it here rather than sending it.
-      await client.pairing.claim(
-        PairingClaimRequest.parse({
-          code: 'imog_pair_x',
-          clientId: 'CLIENT',
-          redirectUri: 'imogen://oauth',
-          codeChallenge: 'x'.repeat(43),
-          codeChallengeMethod: 'S256',
-          ...(item.resource === null ? {} : { resource: item.resource }),
-        }),
+      await requestOnly(
+        client.pairing.claim(
+          PairingClaimRequest.parse({
+            code: 'imog_pair_x',
+            clientId: 'CLIENT',
+            redirectUri: 'imogen://oauth',
+            codeChallenge: 'x'.repeat(43),
+            codeChallengeMethod: 'S256',
+            ...(item.resource === null ? {} : { resource: item.resource }),
+          }),
+        ),
       )
 
       const body = JSON.parse(calls[0]?.body ?? '{}') as Record<string, unknown>
@@ -380,15 +409,19 @@ describe('a boolean on the wire', () => {
       // Both query builders, because each query shape has its own: a field the contract
       // names but this does not set fails as a missing parameter, which is the port being
       // told to catch up.
-      await client.assets.list({ favorite: item.value, archived: item.value, trashed: item.value })
+      await requestOnly(
+        client.assets.list({ favorite: item.value, archived: item.value, trashed: item.value }),
+      )
       // The timeline carries the listing's filters too, through a builder of its own, so it
       // is asked for every field rather than only its own `covers`.
-      await client.assets.timeline({
-        favorite: item.value,
-        archived: item.value,
-        trashed: item.value,
-        covers: item.value,
-      })
+      await requestOnly(
+        client.assets.timeline({
+          favorite: item.value,
+          archived: item.value,
+          trashed: item.value,
+          covers: item.value,
+        }),
+      )
 
       const { assetQueryFields, timelineQueryFields } = contract
       const sent = [assetQueryFields, [...assetQueryFields, ...timelineQueryFields]]
@@ -403,18 +436,20 @@ describe('a boolean on the wire', () => {
       const { calls, fetch } = recorder()
       const client = new ImogenClient({ baseUrl: BASE, fetch, maxRetries: 0 })
 
-      await client.assets.upload(new File(['x'], 'a.jpg', { type: 'image/jpeg' }), {
-        [multipartField]: item.value,
-      })
+      await requestOnly(
+        client.assets.upload(new File(['x'], 'a.jpg', { type: 'image/jpeg' }), {
+          [multipartField]: item.value,
+        }),
+      )
       expect(calls[0]?.form?.get(multipartField)).toBe(item.wire)
     })
   }
 
   /**
-   * The read side, which only this port has: `HttpClient.request` casts rather than
-   * parses, so these schemas run where something calls a parse itself — the server
-   * validating an inbound query string or multipart body, and this suite. The other four
-   * ports encode and never decode a request, which is why they walk `encode` alone.
+   * The read side, which only this port has: these are *request* schemas, so they run
+   * where something parses an inbound query string or multipart body — the server, and
+   * this suite. The other four ports encode and never decode a request, which is why
+   * they walk `encode` alone.
    */
   for (const item of contract.decode) {
     const shown = JSON.stringify(item.wire)
@@ -559,6 +594,9 @@ describe('shared tuning constants', () => {
 })
 
 describe('transport behaviour', () => {
+  /** The empty page every listing answers with, now that a listing is decoded. */
+  const emptyPage = { items: [], nextCursor: null, total: 0 }
+
   test('retries a retryable rejection and then succeeds', async () => {
     let attempts = 0
     const fetch: FetchLike = async () => {
@@ -600,7 +638,7 @@ describe('transport behaviour', () => {
           status: 401,
         })
       }
-      return new Response(JSON.stringify({ items: [] }), { status: 200 })
+      return new Response(JSON.stringify(emptyPage), { status: 200 })
     }
 
     const client = new ImogenClient({
@@ -622,7 +660,7 @@ describe('transport behaviour', () => {
     const seen: { authorization: string | null } = { authorization: null }
     const fetch: FetchLike = async (_input, init) => {
       seen.authorization = new Headers(init?.headers).get('Authorization')
-      return new Response(JSON.stringify({ items: [] }), { status: 200 })
+      return new Response(JSON.stringify(emptyPage), { status: 200 })
     }
 
     await new ImogenClient({ baseUrl: BASE, token: 'abc123', fetch }).assets.list()
@@ -637,9 +675,14 @@ describe('transport behaviour', () => {
   })
 
   test('iterates every page exactly once', async () => {
+    const [a, b, c] = ['a', 'b', 'c'].map((suffix, index) => ({
+      ...(models.assetMinimal.payload as Record<string, unknown>),
+      id: `00000000-0000-4000-8000-00000000000${index}`,
+      originalFilename: `${suffix}.mov`,
+    }))
     const pages = [
-      { items: [{ id: 'a' }, { id: 'b' }], nextCursor: 'c1', total: 3 },
-      { items: [{ id: 'c' }], nextCursor: null, total: 3 },
+      { items: [a, b], nextCursor: 'c1', total: 3 },
+      { items: [c], nextCursor: null, total: 3 },
     ]
     let index = 0
     const fetch: FetchLike = async () =>
@@ -647,7 +690,7 @@ describe('transport behaviour', () => {
 
     const client = new ImogenClient({ baseUrl: BASE, fetch })
     const seen: string[] = []
-    for await (const asset of client.assets.iterate()) seen.push(asset.id)
-    expect(seen).toEqual(['a', 'b', 'c'])
+    for await (const asset of client.assets.iterate()) seen.push(asset.originalFilename)
+    expect(seen).toEqual(['a.mov', 'b.mov', 'c.mov'])
   })
 })
