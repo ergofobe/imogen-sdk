@@ -430,44 +430,83 @@ where
     }
 }
 
+/// A fixture and the check that decodes it, named so the table below reads as one.
+type ModelCheck = (&'static str, fn(&str));
+
+/// Every fixture and the type that must decode it. A table rather than a run of calls,
+/// so the guard below can hold it up against `models.json` instead of trusting the list.
+fn model_checks() -> Vec<ModelCheck> {
+    vec![
+        ("asset", check_model::<Asset>),
+        ("assetMinimal", check_model::<Asset>),
+        ("assetLocationUnset", check_model::<Asset>),
+        ("assetLocationHalfPair", check_model::<Asset>),
+        ("assetLocationLatitudeOutOfRange", check_model::<Asset>),
+        ("assetLocationLongitudeOutOfRange", check_model::<Asset>),
+        ("assetLocationAtTheBounds", check_model::<Asset>),
+        ("assetPage", check_model::<AssetPage>),
+        ("album", check_model::<Album>),
+        ("albumAssetsResult", check_model::<AlbumAssetsResult>),
+        ("shareLink", check_model::<ShareLink>),
+        ("user", check_model::<User>),
+        ("authConfigOidcOff", check_model::<AuthConfig>),
+        ("authConfigOidcOn", check_model::<AuthConfig>),
+        ("person", check_model::<Person>),
+        ("personUnnamed", check_model::<Person>),
+        ("detectedFace", check_model::<DetectedFace>),
+        ("faceStatus", check_model::<FaceStatus>),
+        ("vaultStatusLocked", check_model::<VaultStatus>),
+        ("vaultStatusUnlocked", check_model::<VaultStatus>),
+        ("timeline", check_model::<Timeline>),
+        ("timelineBucket", check_model::<TimelineBucket>),
+        ("timelineTile", check_model::<TimelineTile>),
+        ("libraryStats", check_model::<LibraryStats>),
+        ("uploadSession", check_model::<UploadSession>),
+        ("adminUser", check_model::<AdminUser>),
+        ("queueHealth", check_model::<QueueHealth>),
+        ("storageReport", check_model::<StorageReport>),
+        ("serverSettings", check_model::<ServerSettings>),
+        ("tokenResponse", check_model::<TokenResponse>),
+        (
+            "protectedResourceMetadata",
+            check_model::<ProtectedResourceMetadata>,
+        ),
+        (
+            "protectedResourceMetadataMinimal",
+            check_model::<ProtectedResourceMetadata>,
+        ),
+        ("pairingTicket", check_model::<PairingTicket>),
+        ("pairingStatusUnclaimed", check_model::<PairingStatus>),
+        ("pairingStatusClaimed", check_model::<PairingStatus>),
+        ("pairingClaim", check_model::<PairingClaim>),
+    ]
+}
+
 #[test]
 fn models_decode_as_the_contract_says() {
-    check_model::<Asset>("asset");
-    check_model::<Asset>("assetMinimal");
-    check_model::<Asset>("assetLocationUnset");
-    check_model::<Asset>("assetLocationHalfPair");
-    check_model::<Asset>("assetLocationLatitudeOutOfRange");
-    check_model::<Asset>("assetLocationLongitudeOutOfRange");
-    check_model::<Asset>("assetLocationAtTheBounds");
-    check_model::<AssetPage>("assetPage");
-    check_model::<Album>("album");
-    check_model::<AlbumAssetsResult>("albumAssetsResult");
-    check_model::<ShareLink>("shareLink");
-    check_model::<User>("user");
-    check_model::<AuthConfig>("authConfigOidcOff");
-    check_model::<AuthConfig>("authConfigOidcOn");
-    check_model::<Person>("person");
-    check_model::<Person>("personUnnamed");
-    check_model::<DetectedFace>("detectedFace");
-    check_model::<FaceStatus>("faceStatus");
-    check_model::<VaultStatus>("vaultStatusLocked");
-    check_model::<VaultStatus>("vaultStatusUnlocked");
-    check_model::<Timeline>("timeline");
-    check_model::<TimelineBucket>("timelineBucket");
-    check_model::<TimelineTile>("timelineTile");
-    check_model::<LibraryStats>("libraryStats");
-    check_model::<UploadSession>("uploadSession");
-    check_model::<AdminUser>("adminUser");
-    check_model::<QueueHealth>("queueHealth");
-    check_model::<StorageReport>("storageReport");
-    check_model::<ServerSettings>("serverSettings");
-    check_model::<TokenResponse>("tokenResponse");
-    check_model::<ProtectedResourceMetadata>("protectedResourceMetadata");
-    check_model::<ProtectedResourceMetadata>("protectedResourceMetadataMinimal");
-    check_model::<PairingTicket>("pairingTicket");
-    check_model::<PairingStatus>("pairingStatusUnclaimed");
-    check_model::<PairingStatus>("pairingStatusClaimed");
-    check_model::<PairingClaim>("pairingClaim");
+    for (name, check) in model_checks() {
+        check(name);
+    }
+}
+
+#[test]
+fn every_fixture_in_the_contract_has_a_type_to_decode_it() {
+    let models = fixture(MODELS);
+    let registered: Vec<&str> = model_checks().iter().map(|(name, _)| *name).collect();
+
+    // `$comment` and `version` describe the file rather than a model.
+    let missing: Vec<&String> = models
+        .as_object()
+        .expect("models.json is an object")
+        .keys()
+        .filter(|name| !name.starts_with('$') && name.as_str() != "version")
+        .filter(|name| !registered.contains(&name.as_str()))
+        .collect();
+
+    assert!(
+        missing.is_empty(),
+        "fixtures in the contract with no type to decode them: {missing:?}"
+    );
 }
 
 // --- errors ---
