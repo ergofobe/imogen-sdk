@@ -505,8 +505,11 @@ impl Assets {
 /// for another; unpicking it means not using reqwest's multipart writer at all.
 ///
 /// Escaping is all this buys: undici decodes the escapes back, but Bun — which the server
-/// runs — does not, so a hostile name is stored escaped rather than restored. The exact
-/// name reaches the server in the `filename` part, where nothing has to be escaped.
+/// runs — does not, so a hostile name is stored escaped rather than restored. A caller who
+/// sets `metadata.filename` also sends it in a part body, where nothing has to be escaped
+/// and the exact name survives; a caller who leaves it unset has this header as the only
+/// carrier, and the escapes reach storage. Mangled beats truncated, and beats a 400 for
+/// the whole upload.
 ///
 /// `%` itself is deliberately not escaped, because the WHATWG algorithm does not escape
 /// it either. The mapping is therefore not injective: a real `100%22off.jpg` is sent

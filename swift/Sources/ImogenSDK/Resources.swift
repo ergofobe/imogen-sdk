@@ -831,8 +831,10 @@ func fileSize(of url: URL) throws -> Int {
 /// prescribes, and what every other port emits.
 ///
 /// Escaping is all this buys: undici decodes the escapes back, but Bun — which the server
-/// runs — does not, so a hostile name is stored escaped rather than restored. The exact
-/// name reaches the server in the `filename` part, where nothing has to be escaped.
+/// runs — does not, so a hostile name is stored escaped rather than restored. A caller who
+/// sets `metadata.filename` also sends it in a part body, where nothing has to be escaped
+/// and the exact name survives; a caller who leaves it unset has this header as the only
+/// carrier, and the escapes reach storage. Mangled beats a part header written by the name.
 ///
 /// `%` itself is deliberately not escaped, because the WHATWG algorithm does not escape it
 /// either. The mapping is therefore not injective: a real `100%22off.jpg` is sent unchanged
