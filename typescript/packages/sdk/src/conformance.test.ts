@@ -516,7 +516,9 @@ describe('models decode as the contract says', () => {
 
       // Decoded and re-encoded, as the other four ports do it. Parsing alone would read
       // a field straight off the payload the schema never modelled; going back out
-      // through JSON is what proves the model itself carries it.
+      // through JSON is what proves the model itself carries it — for every assert but a
+      // null one, since the walker below reads an absent key as null exactly as the other
+      // four walkers do, and cannot tell a dropped field from a carried null.
       const encoded = JSON.parse(JSON.stringify(schema.parse(fixture.payload))) as unknown
 
       // Keyed by path so a failure names the field rather than dumping the whole model.

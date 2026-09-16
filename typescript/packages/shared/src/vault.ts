@@ -11,10 +11,11 @@ export const VaultStatus = z.object({
   /**
    * Only present while unlocked: a locked vault does not reveal its size.
    *
-   * Absent *or* null, because the other four ports accept both — Rust's is a
-   * `#[serde(default)] Option<u64>`, Swift's an `Int?` — and a schema stricter than they
-   * are would make TypeScript the one port a server could break by being explicit.
+   * Absent, not null. The other four ports tolerate an explicit null as a side effect of
+   * their optionals, but the server omits the key and the contract's locked fixture omits
+   * it too, so `nullish` here would widen this type — the SDK's public `VaultStatus` —
+   * for a value nothing can send.
    */
-  count: z.number().int().nonnegative().nullish(),
+  count: z.number().int().nonnegative().optional(),
 })
 export type VaultStatus = z.infer<typeof VaultStatus>

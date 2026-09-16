@@ -498,11 +498,13 @@ impl Assets {
 /// algorithm prescribes instead, and what every other port emits. Escaping here rather
 /// than after the fact leaves reqwest none of those three to escape.
 ///
-/// One character is still this port's own: reqwest doubles a backslash, which the WHATWG
-/// algorithm leaves alone, and nothing that can be passed to `file_name` prevents it —
-/// half a backslash is not a thing to hand it. So a name containing one goes out doubled
-/// here and single everywhere else. Escaping it to `%5C` would only trade one divergence
-/// for another; unpicking it means not using reqwest's multipart writer at all.
+/// One character is left over: reqwest doubles a backslash, which the WHATWG algorithm
+/// leaves alone, and nothing that can be passed to `file_name` prevents it — half a
+/// backslash is not a thing to hand it. Python's httpx doubles it too, so a name carrying
+/// one goes out doubled from those two ports and single from the other three. Escaping it
+/// to `%5C` would only trade one divergence for another; unpicking it means not using
+/// reqwest's multipart writer at all. The three characters the tests pin down are the
+/// three the format actually breaks on.
 ///
 /// Escaping is all this buys: undici decodes the escapes back, but Bun — which the server
 /// runs — does not, so a hostile name is stored escaped rather than restored. A caller who
