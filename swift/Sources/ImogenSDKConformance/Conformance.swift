@@ -280,43 +280,64 @@ enum Conformance {
         }
     }
 
+    /// Every fixture and the type that must decode it. A table rather than a run of
+    /// calls, so the guard below can hold it up against `models.json` instead of
+    /// trusting the list.
+    static let modelChecks: [(name: String, decode: (String) throws -> Void)] = [
+        ("asset", { try check(Asset.self, $0) }),
+        ("assetMinimal", { try check(Asset.self, $0) }),
+        ("assetLocationUnset", { try check(Asset.self, $0) }),
+        ("assetLocationHalfPair", { try check(Asset.self, $0) }),
+        ("assetLocationLatitudeOutOfRange", { try check(Asset.self, $0) }),
+        ("assetLocationLongitudeOutOfRange", { try check(Asset.self, $0) }),
+        ("assetLocationAtTheBounds", { try check(Asset.self, $0) }),
+        ("assetPage", { try check(AssetPage.self, $0) }),
+        ("album", { try check(Album.self, $0) }),
+        ("albumAssetsResult", { try check(AlbumAssetsResult.self, $0) }),
+        ("shareLink", { try check(ShareLink.self, $0) }),
+        ("user", { try check(User.self, $0) }),
+        ("authConfigOidcOff", { try check(AuthConfig.self, $0) }),
+        ("authConfigOidcOn", { try check(AuthConfig.self, $0) }),
+        ("person", { try check(Person.self, $0) }),
+        ("personUnnamed", { try check(Person.self, $0) }),
+        ("detectedFace", { try check(DetectedFace.self, $0) }),
+        ("faceStatus", { try check(FaceStatus.self, $0) }),
+        ("vaultStatusLocked", { try check(VaultStatus.self, $0) }),
+        ("vaultStatusUnlocked", { try check(VaultStatus.self, $0) }),
+        ("timeline", { try check(Timeline.self, $0) }),
+        ("timelineBucket", { try check(TimelineBucket.self, $0) }),
+        ("timelineTile", { try check(TimelineTile.self, $0) }),
+        ("libraryStats", { try check(LibraryStats.self, $0) }),
+        ("uploadSession", { try check(UploadSession.self, $0) }),
+        ("adminUser", { try check(AdminUser.self, $0) }),
+        ("queueHealth", { try check(QueueHealth.self, $0) }),
+        ("storageReport", { try check(StorageReport.self, $0) }),
+        ("serverSettings", { try check(ServerSettings.self, $0) }),
+        ("tokenResponse", { try check(TokenResponse.self, $0) }),
+        ("protectedResourceMetadata", { try check(ProtectedResourceMetadata.self, $0) }),
+        ("protectedResourceMetadataMinimal", { try check(ProtectedResourceMetadata.self, $0) }),
+        ("pairingTicket", { try check(PairingTicket.self, $0) }),
+        ("pairingStatusUnclaimed", { try check(PairingStatus.self, $0) }),
+        ("pairingStatusClaimed", { try check(PairingStatus.self, $0) }),
+        ("pairingClaim", { try check(PairingClaim.self, $0) }),
+    ]
+
     static func testModelsDecodeAsTheContractSays() throws {
-        try check(Asset.self, "asset")
-        try check(Asset.self, "assetMinimal")
-        try check(Asset.self, "assetLocationUnset")
-        try check(Asset.self, "assetLocationHalfPair")
-        try check(Asset.self, "assetLocationLatitudeOutOfRange")
-        try check(Asset.self, "assetLocationLongitudeOutOfRange")
-        try check(Asset.self, "assetLocationAtTheBounds")
-        try check(AssetPage.self, "assetPage")
-        try check(Album.self, "album")
-        try check(AlbumAssetsResult.self, "albumAssetsResult")
-        try check(ShareLink.self, "shareLink")
-        try check(User.self, "user")
-        try check(AuthConfig.self, "authConfigOidcOff")
-        try check(AuthConfig.self, "authConfigOidcOn")
-        try check(Person.self, "person")
-        try check(Person.self, "personUnnamed")
-        try check(DetectedFace.self, "detectedFace")
-        try check(FaceStatus.self, "faceStatus")
-        try check(VaultStatus.self, "vaultStatusLocked")
-        try check(VaultStatus.self, "vaultStatusUnlocked")
-        try check(Timeline.self, "timeline")
-        try check(TimelineBucket.self, "timelineBucket")
-        try check(TimelineTile.self, "timelineTile")
-        try check(LibraryStats.self, "libraryStats")
-        try check(UploadSession.self, "uploadSession")
-        try check(AdminUser.self, "adminUser")
-        try check(QueueHealth.self, "queueHealth")
-        try check(StorageReport.self, "storageReport")
-        try check(ServerSettings.self, "serverSettings")
-        try check(TokenResponse.self, "tokenResponse")
-        try check(ProtectedResourceMetadata.self, "protectedResourceMetadata")
-        try check(ProtectedResourceMetadata.self, "protectedResourceMetadataMinimal")
-        try check(PairingTicket.self, "pairingTicket")
-        try check(PairingStatus.self, "pairingStatusUnclaimed")
-        try check(PairingStatus.self, "pairingStatusClaimed")
-        try check(PairingClaim.self, "pairingClaim")
+        for (name, decode) in modelChecks {
+            try decode(name)
+        }
+    }
+
+    static func testEveryFixtureInTheContractHasATypeToDecodeIt() throws {
+        let models = try Conformance.fixture("models.json")
+        let registered = Set(modelChecks.map(\.name))
+
+        // `$comment` and `version` describe the file rather than a model.
+        let missing = models.keys
+            .filter { !$0.hasPrefix("$") && $0 != "version" && !registered.contains($0) }
+            .sorted()
+
+        expectEqual(missing, [], "fixtures in the contract with no type to decode them")
     }
 
     // MARK: Errors

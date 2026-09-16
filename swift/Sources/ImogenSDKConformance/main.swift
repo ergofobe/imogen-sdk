@@ -57,6 +57,9 @@ await scenario("every operation in the contract reaches the right endpoint") {
 await scenario("models decode as the contract says") {
     try Conformance.testModelsDecodeAsTheContractSays()
 }
+await scenario("every fixture in the contract has a type to decode it") {
+    try Conformance.testEveryFixtureInTheContractHasATypeToDecodeIt()
+}
 await scenario("errors are classified as the contract says") {
     try Conformance.testErrorsAreClassifiedAsTheContractSays()
 }

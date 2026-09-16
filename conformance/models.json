@@ -306,12 +306,65 @@
     }
   },
   "assetPage": {
+    "$comment": "One real asset inside the envelope. With `items` empty the page proved only that the envelope decodes, never that what it carries is an Asset, so a port whose page held the wrong element type passed everywhere.",
     "payload": {
-      "items": [],
+      "items": [
+        {
+          "id": "7c2b8d4e-1111-4a2b-9c3d-4e5f60718293",
+          "ownerId": "11111111-2222-4333-8444-555555555555",
+          "type": "image",
+          "status": "ready",
+          "originalFilename": "quay.jpg",
+          "mimeType": "image/jpeg",
+          "checksum": "2c26b46b68ffc68ff99b453c1d30413413422d706483bfa0f98a5e886266e7ae",
+          "sizeBytes": 1048576,
+          "width": 3000,
+          "height": 2000,
+          "duration": null,
+          "capturedAt": "2024-06-01T10:15:00.000Z",
+          "capturedAtIsExact": true,
+          "capturedAtOriginal": null,
+          "capturedAtOriginalIsExact": null,
+          "createdAt": "2024-06-02T11:00:00.000Z",
+          "updatedAt": "2024-06-02T11:05:00.000Z",
+          "deletedAt": null,
+          "favorite": false,
+          "archived": false,
+          "description": null,
+          "exif": {
+            "make": "FUJIFILM",
+            "model": "X-T4",
+            "lens": "XF23mmF1.4 R",
+            "fNumber": 5.6,
+            "exposureTime": 0.008,
+            "iso": 200,
+            "focalLength": 23,
+            "orientation": 1
+          },
+          "location": {
+            "latitude": 50.1109,
+            "longitude": -5.5372,
+            "altitude": 9.5,
+            "place": "Newlyn, Cornwall"
+          },
+          "placeholderColor": "#2f4858",
+          "livePhotoVideoId": null,
+          "deviceAssetId": "IMG_0043"
+        }
+      ],
       "nextCursor": "eyJjIjoiMjAyNC0wNi0wMSJ9",
       "total": 1284
     },
     "assert": {
+      "items.0.id": "7c2b8d4e-1111-4a2b-9c3d-4e5f60718293",
+      "items.0.type": "image",
+      "items.0.status": "ready",
+      "items.0.sizeBytes": 1048576,
+      "items.0.favorite": false,
+      "items.0.duration": null,
+      "items.0.exif.iso": 200,
+      "items.0.location.latitude": 50.1109,
+      "items.0.deviceAssetId": "IMG_0043",
       "nextCursor": "eyJjIjoiMjAyNC0wNi0wMSJ9",
       "total": 1284
     }

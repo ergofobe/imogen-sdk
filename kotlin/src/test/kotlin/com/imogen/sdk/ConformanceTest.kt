@@ -288,44 +288,71 @@ class ConformanceTest {
         }
     }
 
+    /** Pairs a fixture with the type that must decode it, deferring the check itself. */
+    private inline fun <reified T> modelCheck(name: String): Pair<String, () -> Unit> =
+        name to { check<T>(name) }
+
+    /**
+     * Every fixture and the type that decodes it. A table rather than a run of calls, so
+     * the guard below can hold it up against `models.json` instead of trusting the list.
+     */
+    private val modelChecks: List<Pair<String, () -> Unit>> = listOf(
+        modelCheck<Asset>("asset"),
+        modelCheck<Asset>("assetMinimal"),
+        modelCheck<Asset>("assetLocationUnset"),
+        modelCheck<Asset>("assetLocationHalfPair"),
+        modelCheck<Asset>("assetLocationLatitudeOutOfRange"),
+        modelCheck<Asset>("assetLocationLongitudeOutOfRange"),
+        modelCheck<Asset>("assetLocationAtTheBounds"),
+        modelCheck<AssetPage>("assetPage"),
+        modelCheck<Album>("album"),
+        modelCheck<AlbumAssetsResult>("albumAssetsResult"),
+        modelCheck<ShareLink>("shareLink"),
+        modelCheck<User>("user"),
+        modelCheck<AuthConfig>("authConfigOidcOff"),
+        modelCheck<AuthConfig>("authConfigOidcOn"),
+        modelCheck<Person>("person"),
+        modelCheck<Person>("personUnnamed"),
+        modelCheck<DetectedFace>("detectedFace"),
+        modelCheck<FaceStatus>("faceStatus"),
+        modelCheck<VaultStatus>("vaultStatusLocked"),
+        modelCheck<VaultStatus>("vaultStatusUnlocked"),
+        modelCheck<Timeline>("timeline"),
+        modelCheck<TimelineBucket>("timelineBucket"),
+        modelCheck<TimelineTile>("timelineTile"),
+        modelCheck<LibraryStats>("libraryStats"),
+        modelCheck<UploadSession>("uploadSession"),
+        modelCheck<AdminUser>("adminUser"),
+        modelCheck<QueueHealth>("queueHealth"),
+        modelCheck<StorageReport>("storageReport"),
+        modelCheck<ServerSettings>("serverSettings"),
+        modelCheck<TokenResponse>("tokenResponse"),
+        modelCheck<ProtectedResourceMetadata>("protectedResourceMetadata"),
+        modelCheck<ProtectedResourceMetadata>("protectedResourceMetadataMinimal"),
+        modelCheck<PairingTicket>("pairingTicket"),
+        modelCheck<PairingStatus>("pairingStatusUnclaimed"),
+        modelCheck<PairingStatus>("pairingStatusClaimed"),
+        modelCheck<PairingClaim>("pairingClaim"),
+    )
+
     @Test
     fun `models decode as the contract says`() {
-        check<Asset>("asset")
-        check<Asset>("assetMinimal")
-        check<Asset>("assetLocationUnset")
-        check<Asset>("assetLocationHalfPair")
-        check<Asset>("assetLocationLatitudeOutOfRange")
-        check<Asset>("assetLocationLongitudeOutOfRange")
-        check<Asset>("assetLocationAtTheBounds")
-        check<AssetPage>("assetPage")
-        check<Album>("album")
-        check<AlbumAssetsResult>("albumAssetsResult")
-        check<ShareLink>("shareLink")
-        check<User>("user")
-        check<AuthConfig>("authConfigOidcOff")
-        check<AuthConfig>("authConfigOidcOn")
-        check<Person>("person")
-        check<Person>("personUnnamed")
-        check<DetectedFace>("detectedFace")
-        check<FaceStatus>("faceStatus")
-        check<VaultStatus>("vaultStatusLocked")
-        check<VaultStatus>("vaultStatusUnlocked")
-        check<Timeline>("timeline")
-        check<TimelineBucket>("timelineBucket")
-        check<TimelineTile>("timelineTile")
-        check<LibraryStats>("libraryStats")
-        check<UploadSession>("uploadSession")
-        check<AdminUser>("adminUser")
-        check<QueueHealth>("queueHealth")
-        check<StorageReport>("storageReport")
-        check<ServerSettings>("serverSettings")
-        check<TokenResponse>("tokenResponse")
-        check<ProtectedResourceMetadata>("protectedResourceMetadata")
-        check<ProtectedResourceMetadata>("protectedResourceMetadataMinimal")
-        check<PairingTicket>("pairingTicket")
-        check<PairingStatus>("pairingStatusUnclaimed")
-        check<PairingStatus>("pairingStatusClaimed")
-        check<PairingClaim>("pairingClaim")
+        for ((_, check) in modelChecks) check()
+    }
+
+    @Test
+    fun `every fixture in the contract has a type to decode it`() {
+        val registered = modelChecks.map { it.first }.toSet()
+
+        // `$comment` and `version` describe the file rather than a model.
+        val missing = fixture("models.json").keys
+            .filter { !it.startsWith('$') && it != "version" && it !in registered }
+
+        assertEquals(
+            emptyList(),
+            missing,
+            "fixtures in the contract with no type to decode them",
+        )
     }
 
     // --- errors ---

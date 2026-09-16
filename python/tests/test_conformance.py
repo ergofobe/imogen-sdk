@@ -326,6 +326,21 @@ MODEL_TYPES = {
 }
 
 
+def test_every_fixture_in_the_contract_has_a_model(models: Any) -> None:
+    """A fixture missing from ``MODEL_TYPES`` is checked by nothing at all.
+
+    The parametrisation below walks the map rather than the file, so it would skip such a
+    fixture in silence — which is how a port drifts. ``$comment`` and ``version`` describe
+    the file rather than a model.
+    """
+    missing = [
+        name
+        for name in models
+        if not name.startswith("$") and name != "version" and name not in MODEL_TYPES
+    ]
+    assert missing == [], f"fixtures in the contract with no model to decode them: {missing}"
+
+
 @pytest.mark.parametrize("name", sorted(MODEL_TYPES))
 def test_models_decode_as_the_contract_says(models: Any, name: str) -> None:
     """Decode the fixture, re-encode it, and check the asserted fields survived.
