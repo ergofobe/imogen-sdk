@@ -43,12 +43,12 @@ const unusableCoordinate = (value: unknown, bound: number) =>
  * with nothing to pin it to is not something a client can show. The shape has to be
  * absorbed rather than rejected: a server that read a GPS block and made nothing usable
  * of it still answers with the object, and clients outlive the servers they talk to.
- * This is the response path, and it does not reach a caller of this port. `HttpClient.request`
- * casts rather than parses, so this decoder runs only where something calls a parse itself --
- * the conformance suite, and the server validating an inbound body. Rust, Python, Kotlin and
- * Swift apply it on every decode; a TypeScript caller sees whatever the server sent
- * (imogen-sdk#42). The bounds below are likewise the server's check on a request, not a
- * client's own (imogen-sdk#40).
+ * This is the response path, and all five ports apply it on every decode -- the SDK's own
+ * client reaches it through the `decode` it hands `HttpClient.request`, which is what
+ * imogen-sdk#42 fixed; before that it cast, and a TypeScript caller saw whatever the
+ * server sent. `GeoPoint`'s own bounds, below, are a different check: they bite only
+ * whoever calls a parse on a *request*, which in practice is the server validating an
+ * inbound body, never the client sending one (imogen-sdk#40).
  */
 const DecodedGeoPoint = z.preprocess((value) => {
   if (value === null || typeof value !== 'object') return value

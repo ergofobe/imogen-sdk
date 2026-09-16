@@ -1,9 +1,5 @@
-import type {
-  PairingClaim,
-  PairingClaimRequest,
-  PairingStatus,
-  PairingTicket,
-} from '@imogen/shared'
+import type { PairingClaimRequest } from '@imogen/shared'
+import { PairingClaim, PairingStatus, PairingTicket } from '@imogen/shared'
 import type { HttpClient } from './http.js'
 
 /**
@@ -28,12 +24,12 @@ export class Pairing {
    * The `code` is legible only in this response.
    */
   create(): Promise<PairingTicket> {
-    return this.http.request<PairingTicket>('POST', '/api/v1/pairing')
+    return this.http.request('POST', '/api/v1/pairing', { decode: PairingTicket })
   }
 
   /** Whether a device has taken the ticket yet, and what it called itself. */
   status(ticketId: string): Promise<PairingStatus> {
-    return this.http.request<PairingStatus>('GET', `/api/v1/pairing/${ticketId}`)
+    return this.http.request('GET', `/api/v1/pairing/${ticketId}`, { decode: PairingStatus })
   }
 
   /**
@@ -47,6 +43,9 @@ export class Pairing {
    * client learns it cannot bind rather than quietly holding a token good everywhere.
    */
   claim(request: PairingClaimRequest): Promise<PairingClaim> {
-    return this.http.request<PairingClaim>('POST', '/api/v1/pairing/claim', { body: request })
+    return this.http.request('POST', '/api/v1/pairing/claim', {
+      body: request,
+      decode: PairingClaim,
+    })
   }
 }

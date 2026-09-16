@@ -1,3 +1,4 @@
+import { HealthStatus } from '@imogen/shared'
 import { Admin } from './admin.js'
 import { Albums } from './albums.js'
 import { Assets } from './assets.js'
@@ -43,7 +44,7 @@ export class ImogenClient {
   }
 
   /** Confirms the server is reachable and reports its version. */
-  health(): Promise<{ status: string; version: string }> {
-    return this.http.request('GET', '/api/v1/health')
+  health(): Promise<HealthStatus> {
+    return this.http.request('GET', '/api/v1/health', { decode: HealthStatus })
   }
 }

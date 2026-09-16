@@ -46,12 +46,13 @@ export {
 } from './assets.js'
 export { Auth } from './auth.js'
 export { ImogenClient } from './client.js'
-export { ImogenError } from './errors.js'
+export { ImogenDecodeError, ImogenError } from './errors.js'
 export {
   type ClientOptions,
   type FetchLike,
   HttpClient,
   type RequestOptions,
+  type ResponseDecoder,
   type TokenProvider,
 } from './http.js'
 export {

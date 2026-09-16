@@ -53,15 +53,16 @@ reads it:
 This is the answer to the obvious problem with five clients: they drift. A mocked test
 proves a client agrees with itself. These fixtures prove the five agree with each other.
 
-**With one gap, in the TypeScript port.** Its schemas are types at the call site, not a
-runtime decoder: `HttpClient.request` casts the response rather than parsing it, and nothing
-in the shipped source calls a parse. So a rule expressed as a *decode* — "a location with a
-missing or out-of-range coordinate is no location" is the current example — is applied to
-every response by Rust, Python, Kotlin and Swift, and by TypeScript only inside its own
-conformance test. A TypeScript caller receives whatever the server sent. The fixtures pass
-in all five either way, which is what makes this worth saying out loud rather than leaving
-to be discovered. Tracked in
-[#42](https://github.com/ergofobe/imogen-sdk/issues/42).
+A rule expressed as a *decode* — "a location with a missing or out-of-range coordinate is
+no location" is the current example — is applied to every response in all five ports. The
+TypeScript port was the exception until [#42](https://github.com/ergofobe/imogen-sdk/issues/42):
+its schemas were types at the call site and `HttpClient.request` cast the body, so the rule
+held everywhere but in the port the web client uses. It now hands the contract's schema to
+the transport and decodes. What a decoder does with a bad answer is itself part of the
+contract: it absorbs. A location no map can place costs the location, not the response, and
+a field the port has never heard of is dropped rather than refused — which is what makes an
+added field additive, and what lets a client built here keep working against the server
+release that is already out there.
 
 They do not prove the *server* agrees. That is
 [`api/sdk-contract.test.ts`](https://github.com/ergofobe/imogen-server) in the server

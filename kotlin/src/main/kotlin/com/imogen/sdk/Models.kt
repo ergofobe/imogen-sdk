@@ -88,10 +88,9 @@ data class GeoPoint(
  * of 200 -- decodes as no location at all, place name included, since a name with nothing
  * to pin it to is not something a client can show. The shape has to be absorbed rather than
  * rejected: a server that read a GPS block and made nothing usable of it still answers with
- * the object, and clients outlive the servers they talk to. This is the response path, and in
- * four ports: Kotlin, Rust, Python and Swift apply it on every decode, while the TypeScript port
- * casts its responses rather than parsing them, so a TypeScript caller sees whatever the server
- * sent (imogen-sdk#42). Nothing checks the range on the way *out* in any port -- those bounds
+ * the object, and clients outlive the servers they talk to. This is the response path, and all
+ * five ports apply it on every decode -- TypeScript since imogen-sdk#42, which is where it used
+ * to cast. Nothing checks the range on the way *out* in any port -- those bounds
  * bite only whoever calls a parse, which in practice is the server validating an inbound body,
  * never the client sending one (imogen-sdk#40).
  */

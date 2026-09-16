@@ -1,8 +1,9 @@
-import type {
-  DetectedFace,
+import type { DetectedFace, Person, PersonUpdate } from '@imogen/shared'
+import {
+  DetectedFaceList,
   FaceStatus,
-  Person,
-  PersonUpdate,
+  PeopleMergeResult,
+  PersonList,
   PersonWithPhotos,
 } from '@imogen/shared'
 import type { HttpClient } from './http.js'
@@ -17,7 +18,7 @@ export class People {
   constructor(private readonly http: HttpClient) {}
 
   status(): Promise<FaceStatus> {
-    return this.http.request<FaceStatus>('GET', '/api/v1/people/status')
+    return this.http.request('GET', '/api/v1/people/status', { decode: FaceStatus })
   }
 
   /** Administrator only. Enabling downloads the models and scans the library. */
@@ -26,14 +27,15 @@ export class People {
   }
 
   async list(includeHidden = false): Promise<Person[]> {
-    const page = await this.http.request<{ items: Person[] }>('GET', '/api/v1/people', {
+    const page = await this.http.request('GET', '/api/v1/people', {
       query: { includeHidden },
+      decode: PersonList,
     })
     return page.items
   }
 
   get(personId: string): Promise<PersonWithPhotos> {
-    return this.http.request<PersonWithPhotos>('GET', `/api/v1/people/${personId}`)
+    return this.http.request('GET', `/api/v1/people/${personId}`, { decode: PersonWithPhotos })
   }
 
   update(personId: string, patch: PersonUpdate): Promise<void> {
@@ -42,7 +44,10 @@ export class People {
 
   /** Folds several clusters into one. Use when grouping split a person in two. */
   merge(keepId: string, mergeIds: string[]): Promise<{ moved: number }> {
-    return this.http.request('POST', '/api/v1/people/merge', { body: { keepId, mergeIds } })
+    return this.http.request('POST', '/api/v1/people/merge', {
+      body: { keepId, mergeIds },
+      decode: PeopleMergeResult,
+    })
   }
 
   /** Moves specific faces to another person, or detaches them with null. */
@@ -53,10 +58,9 @@ export class People {
   }
 
   async facesIn(assetId: string): Promise<DetectedFace[]> {
-    const page = await this.http.request<{ items: DetectedFace[] }>(
-      'GET',
-      `/api/v1/people/faces/${assetId}`,
-    )
+    const page = await this.http.request('GET', `/api/v1/people/faces/${assetId}`, {
+      decode: DetectedFaceList,
+    })
     return page.items
   }
 

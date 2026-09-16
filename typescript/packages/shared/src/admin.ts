@@ -2,6 +2,16 @@ import { z } from 'zod'
 import { UserRole } from './auth.js'
 
 /**
+ * What `GET /health` answers. Unauthenticated, and so not an administrator's endpoint at
+ * all — but it is the server describing itself, which is what the rest of this file is.
+ */
+export const HealthStatus = z.object({
+  status: z.string(),
+  version: z.string(),
+})
+export type HealthStatus = z.infer<typeof HealthStatus>
+
+/**
  * An account as an administrator sees it.
  *
  * Deliberately not the same shape as `User`: this carries what is needed to decide
@@ -75,6 +85,9 @@ export type InviteCreate = z.infer<typeof InviteCreate>
 export const InviteCreated = Invite.extend({ token: z.string() })
 export type InviteCreated = z.infer<typeof InviteCreated>
 
+export const InviteList = z.object({ items: z.array(Invite) })
+export type InviteList = z.infer<typeof InviteList>
+
 /** One piece of background work, as an administrator needs to see it. */
 export const AdminJob = z.object({
   id: z.uuid(),
@@ -108,6 +121,12 @@ export const QueueHealth = z.object({
 })
 export type QueueHealth = z.infer<typeof QueueHealth>
 
+/** How many failed jobs were put back in the queue. */
+export const QueueRetryResult = z.object({
+  count: z.number().int().nonnegative(),
+})
+export type QueueRetryResult = z.infer<typeof QueueRetryResult>
+
 /**
  * An application allowed to act on someone's behalf.
  *
@@ -129,6 +148,9 @@ export const AdminClient = z.object({
 })
 export type AdminClient = z.infer<typeof AdminClient>
 
+export const AdminClientList = z.object({ items: z.array(AdminClient) })
+export type AdminClientList = z.infer<typeof AdminClientList>
+
 /** A signed-in browser. */
 export const AdminSession = z.object({
   id: z.uuid(),
@@ -143,6 +165,9 @@ export const AdminSession = z.object({
   current: z.boolean(),
 })
 export type AdminSession = z.infer<typeof AdminSession>
+
+export const AdminSessionList = z.object({ items: z.array(AdminSession) })
+export type AdminSessionList = z.infer<typeof AdminSessionList>
 
 /** Where the bytes are, and what is not accounted for. */
 export const StorageReport = z.object({
@@ -210,3 +235,6 @@ export const AdminShareLink = z.object({
   allowDownload: z.boolean(),
 })
 export type AdminShareLink = z.infer<typeof AdminShareLink>
+
+export const AdminShareLinkList = z.object({ items: z.array(AdminShareLink) })
+export type AdminShareLinkList = z.infer<typeof AdminShareLinkList>

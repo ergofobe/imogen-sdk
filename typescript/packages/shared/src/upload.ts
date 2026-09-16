@@ -25,6 +25,16 @@ export const UploadSession = z.object({
 })
 export type UploadSession = z.infer<typeof UploadSession>
 
+/**
+ * What a chunk PATCH answers: where the server now is in the file. The client resumes
+ * from this rather than from its own arithmetic, so a partially written chunk costs a
+ * repeat rather than a hole.
+ */
+export const UploadChunkProgress = z.object({
+  offset: z.number().int().nonnegative(),
+})
+export type UploadChunkProgress = z.infer<typeof UploadChunkProgress>
+
 export const BULK_UPLOAD_CONCURRENCY = 6
 /** Files at or above this size use the resumable protocol. */
 export const RESUMABLE_THRESHOLD_BYTES = 64 * 1024 * 1024
