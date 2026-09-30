@@ -49,6 +49,25 @@ class Stub:
 Responder = Callable[[Recorded, int], Reply]
 
 
+def _read_chunked(stream: Any) -> bytes:
+    """Reads a chunked request body, which is how a streamed upload arrives."""
+    chunks: list[bytes] = []
+    while True:
+        line = stream.readline()
+        if not line:
+            break
+        size = int(line.split(b";", 1)[0], 16)
+        if size == 0:
+            while True:
+                trailer = stream.readline()
+                if trailer in (b"\r\n", b"\n", b""):
+                    break
+            break
+        chunks.append(stream.read(size))
+        stream.read(2)
+    return b"".join(chunks)
+
+
 def _handler_for(stub: Stub, responder: Responder) -> type[BaseHTTPRequestHandler]:
     class Handler(BaseHTTPRequestHandler):
         protocol_version = "HTTP/1.1"
@@ -57,8 +76,13 @@ def _handler_for(stub: Stub, responder: Responder) -> type[BaseHTTPRequestHandle
             pass
 
         def _respond(self) -> None:
-            length = int(self.headers.get("Content-Length") or 0)
-            body = self.rfile.read(length) if length else b""
+            length_header = self.headers.get("Content-Length")
+            if length_header is not None:
+                body = self.rfile.read(int(length_header))
+            elif "chunked" in (self.headers.get("Transfer-Encoding") or "").lower():
+                body = _read_chunked(self.rfile)
+            else:
+                body = b""
             parsed = urlparse(self.path)
 
             request = Recorded(
