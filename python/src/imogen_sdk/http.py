@@ -10,7 +10,7 @@ import asyncio
 import inspect
 import io
 import random
-from collections.abc import Awaitable, Callable
+from collections.abc import Awaitable, Callable, Mapping
 from typing import Any
 
 import httpx
@@ -106,34 +106,45 @@ class HttpClient:
         headers: dict[str, str] | None = None,
     ) -> httpx.Response:
         """Sends and hands back the raw response, for bytes rather than JSON."""
-        last: Exception | None = None
+        # Materialize the mapping once. A multipart body is not retried: the other ports
+        # and the README refuse to hold the file and send it again after a 5xx or a drop.
+        # A 401 may resend once, with the refreshed token, and that resend is not a retry.
+        uploads = _file_entries(files) if files else None
+        origins = _capture_origins(uploads) if uploads is not None else None
+        refreshed = False
+        attempt = 0
 
-        for attempt in range(self._max_retries + 1):
-            # The previous attempt read any upload handle to EOF.
-            if attempt and files:
-                _rewind_files(files)
+        while attempt <= self._max_retries:
             try:
                 response = await self._attempt(
                     method,
                     path,
                     params=params,
                     json=json,
-                    files=files,
+                    files=uploads,
                     data=data,
                     content=content,
                     headers=headers,
                 )
-            except httpx.RequestError as error:
-                # A network failure is worth retrying; a rejection from the server is not.
-                if attempt == self._max_retries:
+            except httpx.RequestError:
+                if uploads is not None or attempt == self._max_retries:
                     raise
-                last = error
                 await _backoff(attempt)
+                attempt += 1
                 continue
 
-            if response.status_code == 401 and self._on_unauthorized and attempt == 0:
-                # Give the caller one chance to refresh, then try again with the new token.
-                if await self._on_unauthorized():
+            if (
+                response.status_code == 401
+                and attempt == 0
+                and not refreshed
+                and self._on_unauthorized is not None
+            ):
+                fresh = await self._on_unauthorized()
+                if fresh:
+                    refreshed = True
+                    self._token = fresh
+                    if uploads is not None:
+                        uploads = _files_for_replay(uploads, origins)
                     continue
 
             if response.is_success:
@@ -142,13 +153,13 @@ class HttpClient:
             error = ImogenError.from_response(
                 response.status_code, response.reason_phrase, response.content
             )
-            if error.is_retryable and attempt < self._max_retries:
-                last = error
+            if uploads is None and error.is_retryable and attempt < self._max_retries:
                 await _backoff(attempt)
+                attempt += 1
                 continue
             raise error
 
-        raise last or ImogenError(0, "http_error", "Request failed")
+        raise ImogenError(0, "http_error", "Request failed")
 
     async def _attempt(
         self,
@@ -178,28 +189,68 @@ class HttpClient:
         )
 
 
-def _rewind_files(files: Any) -> None:
-    """Put every upload handle back at the start of the file.
+def _file_entries(files: Any) -> list[tuple[Any, Any]]:
+    if isinstance(files, Mapping):
+        return list(files.items())
+    return [(name, value) for name, value in files]
 
-    A retry reuses the mapping the caller passed in. Encoding reads a handle to
-    the end, and a handle left there becomes an empty part. Seeking reads the
-    file again from disk rather than holding it in memory. Bytes and strings
-    are already the body, so there is nothing to rewind.
-    """
-    entries = files.items() if isinstance(files, dict) else files
-    for entry in entries:
-        value = entry[1]
-        handle = value[1] if isinstance(value, tuple) and len(value) >= 2 else value
+
+def _upload_handle(value: Any) -> Any:
+    if isinstance(value, tuple) and len(value) >= 2:
+        return value[1]
+    return value
+
+
+def _with_upload_handle(value: Any, handle: bytes) -> Any:
+    if isinstance(value, tuple) and len(value) >= 2:
+        return (value[0], handle, *value[2:])
+    return handle
+
+
+def _capture_origins(entries: list[tuple[Any, Any]]) -> list[Any]:
+    """Where each handle was when the call began. ``None`` is already bytes."""
+    origins: list[Any] = []
+    for _name, value in entries:
+        handle = _upload_handle(value)
         if isinstance(handle, (str, bytes, bytearray)):
+            origins.append(None)
             continue
-        seek = getattr(handle, "seek", None)
-        if not callable(seek):
+        tell = getattr(handle, "tell", None)
+        if not callable(tell):
+            origins.append(False)
             continue
         try:
-            seek(0)
-        except io.UnsupportedOperation:
-            # A pipe cannot be rewound. Leave it, and let this attempt read what is left.
+            origins.append(tell())
+        except (io.UnsupportedOperation, OSError, ValueError):
+            origins.append(False)
+    return origins
+
+
+def _files_for_replay(entries: list[tuple[Any, Any]], origins: list[Any]) -> list[tuple[Any, Any]]:
+    """Bytes for one resend, from the caller's position rather than 0.
+
+    httpx seeks a seekable handle to 0 before reading it. That repeats a prefix
+    the caller had already moved past, and a handle that cannot seek back would
+    send whatever is left. Either way this does not ask httpx to read the handle
+    again.
+    """
+    replayed: list[tuple[Any, Any]] = []
+    for (name, value), origin in zip(entries, origins, strict=True):
+        if origin is None:
+            replayed.append((name, value))
             continue
+        if origin is False:
+            raise ImogenError(0, "http_error", "The upload cannot be sent again")
+        handle = _upload_handle(value)
+        try:
+            handle.seek(origin)
+            payload = handle.read()
+        except (io.UnsupportedOperation, OSError, ValueError) as error:
+            raise ImogenError(0, "http_error", "The upload cannot be sent again") from error
+        if not isinstance(payload, (bytes, bytearray)):
+            raise ImogenError(0, "http_error", "The upload cannot be sent again")
+        replayed.append((name, _with_upload_handle(value, bytes(payload))))
+    return replayed
 
 
 async def _backoff(attempt: int) -> None:
