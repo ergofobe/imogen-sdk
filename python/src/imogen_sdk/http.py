@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import asyncio
 import inspect
+import io
 import random
 from collections.abc import Awaitable, Callable
 from typing import Any
@@ -108,6 +109,9 @@ class HttpClient:
         last: Exception | None = None
 
         for attempt in range(self._max_retries + 1):
+            # The previous attempt read any upload handle to EOF.
+            if attempt and files:
+                _rewind_files(files)
             try:
                 response = await self._attempt(
                     method,
@@ -172,6 +176,30 @@ class HttpClient:
             content=content,
             headers=merged,
         )
+
+
+def _rewind_files(files: Any) -> None:
+    """Put every upload handle back at the start of the file.
+
+    A retry reuses the mapping the caller passed in. Encoding reads a handle to
+    the end, and a handle left there becomes an empty part. Seeking reads the
+    file again from disk rather than holding it in memory. Bytes and strings
+    are already the body, so there is nothing to rewind.
+    """
+    entries = files.items() if isinstance(files, dict) else files
+    for entry in entries:
+        value = entry[1]
+        handle = value[1] if isinstance(value, tuple) and len(value) >= 2 else value
+        if isinstance(handle, (str, bytes, bytearray)):
+            continue
+        seek = getattr(handle, "seek", None)
+        if not callable(seek):
+            continue
+        try:
+            seek(0)
+        except io.UnsupportedOperation:
+            # A pipe cannot be rewound. Leave it, and let this attempt read what is left.
+            continue
 
 
 async def _backoff(attempt: int) -> None:
