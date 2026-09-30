@@ -105,9 +105,15 @@ class HttpClient:
         headers: dict[str, str] | None = None,
     ) -> httpx.Response:
         """Sends and hands back the raw response, for bytes rather than JSON."""
-        last: Exception | None = None
+        # A multipart body is never sent twice. A 401 elsewhere is resent once.
+        multipart = bool(files)
+        refreshed = False
+        retry_authorization: str | None = None
+        attempt = 0
 
-        for attempt in range(self._max_retries + 1):
+        while True:
+            authorization = retry_authorization
+            retry_authorization = None
             try:
                 response = await self._attempt(
                     method,
@@ -118,18 +124,25 @@ class HttpClient:
                     data=data,
                     content=content,
                     headers=headers,
+                    authorization=authorization,
                 )
-            except httpx.RequestError as error:
-                # A network failure is worth retrying; a rejection from the server is not.
-                if attempt == self._max_retries:
+            except httpx.RequestError:
+                if multipart or attempt == self._max_retries:
                     raise
-                last = error
                 await _backoff(attempt)
+                attempt += 1
                 continue
 
-            if response.status_code == 401 and self._on_unauthorized and attempt == 0:
-                # Give the caller one chance to refresh, then try again with the new token.
-                if await self._on_unauthorized():
+            if (
+                response.status_code == 401
+                and attempt == 0
+                and not refreshed
+                and self._on_unauthorized is not None
+            ):
+                refreshed = True
+                fresh = await self._on_unauthorized()
+                if fresh and not multipart:
+                    retry_authorization = f"Bearer {fresh}"
                     continue
 
             if response.is_success:
@@ -138,13 +151,11 @@ class HttpClient:
             error = ImogenError.from_response(
                 response.status_code, response.reason_phrase, response.content
             )
-            if error.is_retryable and attempt < self._max_retries:
-                last = error
+            if not multipart and error.is_retryable and attempt < self._max_retries:
                 await _backoff(attempt)
+                attempt += 1
                 continue
             raise error
-
-        raise last or ImogenError(0, "http_error", "Request failed")
 
     async def _attempt(
         self,
@@ -157,9 +168,11 @@ class HttpClient:
         data: Any | None,
         content: bytes | None,
         headers: dict[str, str] | None,
+        authorization: str | None = None,
     ) -> httpx.Response:
         merged = dict(headers or {})
-        authorization = await self._authorization()
+        if authorization is None:
+            authorization = await self._authorization()
         if authorization:
             merged["Authorization"] = authorization
 
